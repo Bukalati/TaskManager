@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUser, signToken, COOKIE_NAME, saveStoredUser } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
-import { successResponse, errorResponse } from '@/lib/utils/api-response';
+import { getSessionUser, signToken, COOKIE_NAME, saveStoredUserAsync } from '@/lib/auth';
+import { errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -19,23 +20,8 @@ export async function PATCH(request: NextRequest) {
       avatar_url: avatar_url !== undefined ? avatar_url : session.avatar_url,
     };
 
-    // Save in file-based & in-memory store
-    saveStoredUser(updatedUser);
-
-    // Update in Supabase if table exists
-    try {
-      const client = supabase.client;
-      await client
-        .from('profiles')
-        .update({
-          full_name: updatedUser.full_name,
-          avatar_url: updatedUser.avatar_url,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', session.id);
-    } catch {
-      // Ignored if table not created yet
-    }
+    // Save persistently in cloud database & local store
+    await saveStoredUserAsync(updatedUser);
 
     // Refresh cookie safely
     const token = await signToken(updatedUser);

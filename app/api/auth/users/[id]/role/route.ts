@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { getSessionUser, saveStoredUser } from '@/lib/auth';
+import { getSessionUser, saveStoredUserAsync } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(
   request: NextRequest,
@@ -30,17 +31,7 @@ export async function PATCH(
       return errorResponse('نمی‌توان نقش مدیر اصلی سیستم را تغییر داد', 400);
     }
 
-    try {
-      const client = supabase.client;
-      await client
-        .from('profiles')
-        .update({ role, updated_at: new Date().toISOString() })
-        .eq('id', targetUserId);
-    } catch {
-      // Fallback
-    }
-
-    saveStoredUser({ id: targetUserId, role });
+    await saveStoredUserAsync({ id: targetUserId, role });
 
     return successResponse({
       id: targetUserId,

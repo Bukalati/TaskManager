@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { hashPassword, signToken, COOKIE_NAME, findUserByEmail, saveStoredUser } from '@/lib/auth';
-import { successResponse, errorResponse } from '@/lib/utils/api-response';
+import { hashPassword, signToken, COOKIE_NAME, findUserByEmailAsync, saveStoredUserAsync } from '@/lib/auth';
+import { errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,25 +22,8 @@ export async function POST(request: NextRequest) {
     const cleanName = full_name.trim();
 
     // Check if email already registered
-    let exists = false;
-    try {
-      const client = supabase.client;
-      const { data } = await client
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanEmail)
-        .maybeSingle();
-
-      if (data) exists = true;
-    } catch {
-      // Fallback check
-    }
-
-    if (!exists && findUserByEmail(cleanEmail)) {
-      exists = true;
-    }
-
-    if (exists) {
+    const existingUser = await findUserByEmailAsync(cleanEmail);
+    if (existingUser) {
       return errorResponse('کاربری با این ایمیل قبلاً ثبت نام کرده است', 409);
     }
 
@@ -55,16 +40,8 @@ export async function POST(request: NextRequest) {
       avatar_url: null,
     };
 
-    // Always persist in stored users
-    saveStoredUser(newProfile);
-
-    // Try saving to Supabase if table exists
-    try {
-      const client = supabase.client;
-      await client.from('profiles').insert([newProfile]);
-    } catch {
-      // Ignored
-    }
+    // Persist in cloud database & local store
+    await saveStoredUserAsync(newProfile);
 
     const sessionPayload = {
       id: newUserId,

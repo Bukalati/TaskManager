@@ -22,5 +22,13 @@
     "full_name": "علی کریمی",
     "role": "member",
     "avatar_url": null
+  },
+  {
+    "id": "400c6c85-7d92-4197-8da0-91422f4c8846",
+    "email": "persistent_tester_1790778920253@example.com",
+    "full_name": "کاربر تستی ابری",
+    "role": "member",
+    "password_hash": "some_hash",
+    "avatar_url": null
   }
 ]

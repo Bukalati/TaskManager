@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { getSessionUser, getAllStoredUsers } from '@/lib/auth';
+import { getSessionUser, getAllStoredUsersAsync } from '@/lib/auth';
 import {
   createTaskSchema,
   taskQuerySchema,
@@ -17,29 +17,18 @@ import type { Task, PaginationMeta, UserSummary } from '@/types/task';
 async function resolveUsersMap(): Promise<Map<string, UserSummary>> {
   const map = new Map<string, UserSummary>();
 
-  // Add all stored users
-  for (const u of getAllStoredUsers()) {
-    map.set(u.id, {
-      id: u.id,
-      email: u.email,
-      full_name: u.full_name,
-      avatar_url: u.avatar_url,
-      role: u.role,
-    });
-  }
-
-  // Try fetching fresh profiles from Supabase if table exists
   try {
-    const client = supabase.client;
-    const { data } = await client.from('profiles').select('id, email, full_name, avatar_url, role');
-    if (data && data.length > 0) {
-      for (const p of data) {
-        map.set(p.id, p);
-      }
+    const allUsers = await getAllStoredUsersAsync();
+    for (const u of allUsers) {
+      map.set(u.id, {
+        id: u.id,
+        email: u.email,
+        full_name: u.full_name,
+        avatar_url: u.avatar_url,
+        role: u.role,
+      });
     }
-  } catch {
-    // Ignore
-  }
+  } catch {}
 
   return map;
 }
@@ -55,6 +44,9 @@ export async function GET(request: NextRequest) {
 
     const client = supabase.client;
     let dbQuery = client.from('tasks').select('*', { count: 'exact' });
+
+    // Exclude internal system user storage rows
+    dbQuery = dbQuery.not('title', 'like', '__USER__:%');
 
     // Filter by status
     if (query.status) {

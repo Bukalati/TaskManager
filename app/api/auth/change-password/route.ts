@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { getSessionUser, comparePassword, hashPassword, findUserById, saveStoredUser } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { getSessionUser, comparePassword, hashPassword, findUserByIdAsync, saveStoredUserAsync } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,25 +22,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('رمز عبور جدید باید حداقل ۶ کاراکتر باشد', 400);
     }
 
-    let userRecord: any = null;
-
-    try {
-      const client = supabase.client;
-      const { data } = await client
-        .from('profiles')
-        .select('*')
-        .eq('id', session.id)
-        .maybeSingle();
-
-      if (data) userRecord = data;
-    } catch {
-      // Fallback
-    }
-
-    if (!userRecord) {
-      userRecord = findUserById(session.id);
-    }
-
+    const userRecord = await findUserByIdAsync(session.id);
     if (!userRecord) {
       return errorResponse('کاربر یافت نشد', 404);
     }
@@ -50,21 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const newHash = await hashPassword(new_password);
-
-    try {
-      const client = supabase.client;
-      await client
-        .from('profiles')
-        .update({
-          password_hash: newHash,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', session.id);
-    } catch {
-      // Fallback
-    }
-
-    saveStoredUser({ id: session.id, password_hash: newHash });
+    await saveStoredUserAsync({ id: session.id, password_hash: newHash });
 
     return successResponse(
       { message: 'رمز عبور با موفقیت تغییر کرد' },

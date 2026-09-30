@@ -35,8 +35,8 @@ export async function GET(
       .eq('id', id)
       .single();
 
-    if (error) {
-      throw error;
+    if (error || !data || data.title?.startsWith('__USER__:')) {
+      return errorResponse('Task not found', 404);
     }
 
     const meta = parseTaskMetadata(data.description);
@@ -86,7 +86,7 @@ export async function PATCH(
       .eq('id', id)
       .single();
 
-    if (fetchError || !existingTask) {
+    if (fetchError || !existingTask || existingTask.title?.startsWith('__USER__:')) {
       return errorResponse('Task not found', 404);
     }
 
@@ -214,7 +214,7 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (fetchError || !existingTask) {
+    if (fetchError || !existingTask || existingTask.title?.startsWith('__USER__:')) {
       return errorResponse('Task not found', 404);
     }
 

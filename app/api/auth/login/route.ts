@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { comparePassword, signToken, COOKIE_NAME, findUserByEmail } from '@/lib/auth';
-import { successResponse, errorResponse } from '@/lib/utils/api-response';
+import { comparePassword, signToken, COOKIE_NAME, findUserByEmailAsync } from '@/lib/auth';
+import { errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,28 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    let userRecord: any = null;
-
-    // Try Supabase first
-    try {
-      const client = supabase.client;
-      const { data, error } = await client
-        .from('profiles')
-        .select('*')
-        .eq('email', cleanEmail)
-        .maybeSingle();
-
-      if (!error && data) {
-        userRecord = data;
-      }
-    } catch {
-      // Fallback
-    }
-
-    // Fallback to stored users if not found in DB
-    if (!userRecord) {
-      userRecord = findUserByEmail(cleanEmail);
-    }
+    const userRecord = await findUserByEmailAsync(cleanEmail);
 
     if (!userRecord) {
       return errorResponse('کاربری با این ایمیل یافت نشد', 401);
