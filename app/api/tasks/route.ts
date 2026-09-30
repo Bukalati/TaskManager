@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import {
   createTaskSchema,
   taskQuerySchema,
-} from '@/lib/validations/task.schema';
+} from '../../../lib/validations/task.schema';
 import {
   successResponse,
   errorResponse,
   handleApiError,
-} from '@/lib/utils/api-response';
-import type { Task, PaginationMeta } from '@/types/task';
+} from '../../../lib/utils/api-response';
+import type { Task, PaginationMeta } from '../../../types/task';
 
 // GET /api/tasks - List tasks with filtering, search, and pagination
 export async function GET(request: NextRequest) {

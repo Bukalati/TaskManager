@@ -16,7 +16,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
-import type { Task, TaskStatus, TaskPriority } from '@/types/task';
+import type { Task, TaskStatus, TaskPriority } from '../types/task';
 
 const STATUS_COLUMNS: {
   id: TaskStatus;
