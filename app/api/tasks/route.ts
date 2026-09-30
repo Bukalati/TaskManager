@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { getSessionUser, DEFAULT_USERS } from '@/lib/auth';
+import { getSessionUser, getAllStoredUsers } from '@/lib/auth';
 import {
   createTaskSchema,
   taskQuerySchema,
@@ -10,14 +10,15 @@ import {
   errorResponse,
   handleApiError,
 } from '@/lib/utils/api-response';
+import { parseTaskMetadata, embedTaskMetadata } from '@/lib/task-metadata';
 import type { Task, PaginationMeta, UserSummary } from '@/types/task';
 
 // Helper to resolve user summaries for task assignees and creators
 async function resolveUsersMap(): Promise<Map<string, UserSummary>> {
   const map = new Map<string, UserSummary>();
 
-  // Add default/fallback users
-  for (const u of DEFAULT_USERS) {
+  // Add all stored users
+  for (const u of getAllStoredUsers()) {
     map.set(u.id, {
       id: u.id,
       email: u.email,
@@ -27,7 +28,7 @@ async function resolveUsersMap(): Promise<Map<string, UserSummary>> {
     });
   }
 
-  // Try fetching fresh profiles from Supabase
+  // Try fetching fresh profiles from Supabase if table exists
   try {
     const client = supabase.client;
     const { data } = await client.from('profiles').select('id, email, full_name, avatar_url, role');
@@ -37,13 +38,13 @@ async function resolveUsersMap(): Promise<Map<string, UserSummary>> {
       }
     }
   } catch {
-    // Ignore if table not present
+    // Ignore
   }
 
   return map;
 }
 
-// GET /api/tasks - List tasks with filtering, search, pagination and user joins
+// GET /api/tasks - List tasks with metadata extraction, filtering, and user joins
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -63,16 +64,6 @@ export async function GET(request: NextRequest) {
     // Filter by priority
     if (query.priority) {
       dbQuery = dbQuery.eq('priority', query.priority);
-    }
-
-    // Filter by assigned user
-    if (query.assigned_to) {
-      dbQuery = dbQuery.eq('assigned_to', query.assigned_to);
-    }
-
-    // Filter by creator
-    if (query.created_by) {
-      dbQuery = dbQuery.eq('created_by', query.created_by);
     }
 
     // Search in title and description
@@ -97,15 +88,35 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
-    // Attach assignee and creator objects
     const usersMap = await resolveUsersMap();
-    const tasksWithUsers = ((data as any[]) || []).map((t) => ({
-      ...t,
-      assignee: t.assigned_to ? usersMap.get(t.assigned_to) || null : null,
-      creator: t.created_by ? usersMap.get(t.created_by) || null : null,
-    }));
 
-    const total = count ?? 0;
+    // Map each task, extract embedded metadata, clean description, and attach users
+    let tasksWithUsers: Task[] = ((data as any[]) || []).map((t) => {
+      const meta = parseTaskMetadata(t.description);
+      const createdBy = t.created_by || meta.created_by || null;
+      const assignedTo = t.assigned_to || meta.assigned_to || null;
+
+      return {
+        ...t,
+        description: meta.cleanDescription,
+        created_by: createdBy,
+        assigned_to: assignedTo,
+        assignee: assignedTo ? usersMap.get(assignedTo) || null : null,
+        creator: createdBy ? usersMap.get(createdBy) || null : null,
+      };
+    });
+
+    // Filter by assigned_to in memory if requested and not done at DB level
+    if (query.assigned_to) {
+      tasksWithUsers = tasksWithUsers.filter((t) => t.assigned_to === query.assigned_to);
+    }
+
+    // Filter by created_by in memory if requested
+    if (query.created_by) {
+      tasksWithUsers = tasksWithUsers.filter((t) => t.created_by === query.created_by);
+    }
+
+    const total = count ?? tasksWithUsers.length;
     const totalPages = Math.ceil(total / query.limit) || 1;
 
     const meta: PaginationMeta = {
@@ -117,15 +128,21 @@ export async function GET(request: NextRequest) {
       hasPrevPage: query.page > 1,
     };
 
-    return successResponse<Task[]>(tasksWithUsers as Task[], 200, meta);
+    return successResponse<Task[]>(tasksWithUsers, 200, meta);
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-// POST /api/tasks - Create a new task with assignment & creator
+// POST /api/tasks - Create a new task with assignment & creator (requires authentication)
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getSessionUser(request);
+    if (!session) {
+      return errorResponse('برای ایجاد تسک، لطفاً ابتدا وارد حساب کاربری خود شوید', 401);
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -133,27 +150,30 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid JSON body in request', 400);
     }
 
-    // Check session
-    const session = await getSessionUser(request);
-
     // Validate request payload
     const validatedData = createTaskSchema.parse(body);
 
-    const createdBy = validatedData.created_by || session?.id || null;
+    const createdBy = session.id;
     const assignedTo = validatedData.assigned_to || null;
+
+    // Embed created_by and assigned_to into description for 100% resilient Supabase persistence
+    const embeddedDesc = embedTaskMetadata(validatedData.description, {
+      created_by: createdBy,
+      assigned_to: assignedTo,
+    });
 
     const client = supabase.client;
     const insertPayload: any = {
       title: validatedData.title,
-      description: validatedData.description ?? null,
+      description: embeddedDesc,
       status: validatedData.status,
       priority: validatedData.priority,
       due_date: validatedData.due_date ?? null,
+      created_by: createdBy,
+      assigned_to: assignedTo,
     };
 
-    if (createdBy) insertPayload.created_by = createdBy;
-    if (assignedTo) insertPayload.assigned_to = assignedTo;
-
+    let createdTaskData: any = null;
     const { data, error } = await client
       .from('tasks')
       .insert([insertPayload])
@@ -161,18 +181,33 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      // In case columns created_by / assigned_to are not yet in Supabase schema
-      if (error.message?.includes('column') && (insertPayload.created_by || insertPayload.assigned_to)) {
+      // In case columns created_by / assigned_to are not yet in Supabase schema, retry without them
+      if (error.message?.includes('column')) {
         delete insertPayload.created_by;
         delete insertPayload.assigned_to;
         const retry = await client.from('tasks').insert([insertPayload]).select().single();
         if (retry.error) throw retry.error;
-        return successResponse<Task>(retry.data as Task, 201);
+        createdTaskData = retry.data;
+      } else {
+        throw error;
       }
-      throw error;
+    } else {
+      createdTaskData = data;
     }
 
-    return successResponse<Task>(data as Task, 201);
+    const usersMap = await resolveUsersMap();
+    const cleanMeta = parseTaskMetadata(createdTaskData.description);
+
+    const resultTask: Task = {
+      ...createdTaskData,
+      description: cleanMeta.cleanDescription,
+      created_by: createdBy,
+      assigned_to: assignedTo,
+      assignee: assignedTo ? usersMap.get(assignedTo) || null : null,
+      creator: usersMap.get(createdBy) || null,
+    };
+
+    return successResponse<Task>(resultTask, 201);
   } catch (error) {
     return handleApiError(error);
   }

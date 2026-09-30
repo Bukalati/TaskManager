@@ -671,20 +671,36 @@ export function ProfileModal({
 
   if (!isOpen || !user) return null;
 
-  // Handle local image file upload & convert to compact data URL
+  // Handle local image file upload & convert to compact, lightweight 96x96 data URL
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert(lang === 'fa' ? 'حجم تصویر نباید بیشتر از ۲ مگابایت باشد' : 'Image size must be under 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert(lang === 'fa' ? 'حجم تصویر نباید بیشتر از ۵ مگابایت باشد' : 'Image size must be under 5MB');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarUrl(reader.result);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 96;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+          const compactDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setAvatarUrl(compactDataUrl);
+        }
+      };
+      if (typeof event.target?.result === 'string') {
+        img.src = event.target.result;
       }
     };
     reader.readAsDataURL(file);

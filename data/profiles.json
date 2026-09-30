@@ -1,0 +1,26 @@
+[
+  {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "email": "admin@taskflow.local",
+    "password_hash": "$2b$10$Aq32jNuxRikaxBWX1.xmQ.lz74QkEEkLZkyUok3pfr0TCXZz1KcTK",
+    "full_name": "مدیر سیستم (Super Admin)",
+    "role": "admin",
+    "avatar_url": null
+  },
+  {
+    "id": "b0000000-0000-0000-0000-000000000002",
+    "email": "sara@taskflow.local",
+    "password_hash": "$2b$10$/D1.XUtSb72H4zg9Wexs1OeYvLEoKUtdox8N5JgtFDTou4Ob24Xvq",
+    "full_name": "سارا محمدی",
+    "role": "member",
+    "avatar_url": null
+  },
+  {
+    "id": "c0000000-0000-0000-0000-000000000003",
+    "email": "ali@taskflow.local",
+    "password_hash": "$2b$10$W90dRgVqUbKd/56XxlzscuL32tVWJD8vyhtmbEXhj2V3/J5cS6wKu",
+    "full_name": "علی کریمی",
+    "role": "member",
+    "avatar_url": null
+  }
+]

@@ -2,6 +2,8 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'taskflow-super-secret-key-neo-brutalist-2026-very-secure'
@@ -17,8 +19,12 @@ export interface UserSession {
   avatar_url?: string | null;
 }
 
-// Fallback in-memory users in case Supabase schema.sql hasn't been run yet
-export const DEFAULT_USERS: Array<UserSession & { password_hash: string }> = [
+export interface StoredUser extends UserSession {
+  password_hash: string;
+}
+
+// Default seeded accounts
+export const DEFAULT_USERS: StoredUser[] = [
   {
     id: 'a0000000-0000-0000-0000-000000000001',
     email: 'admin@taskflow.local',
@@ -45,6 +51,70 @@ export const DEFAULT_USERS: Array<UserSession & { password_hash: string }> = [
   },
 ];
 
+const DATA_DIR = path.join(process.cwd(), 'data');
+const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
+let inMemoryUsers: StoredUser[] | null = null;
+
+export function getAllStoredUsers(): StoredUser[] {
+  if (inMemoryUsers && inMemoryUsers.length > 0) {
+    return inMemoryUsers;
+  }
+
+  try {
+    if (fs.existsSync(PROFILES_FILE)) {
+      const raw = fs.readFileSync(PROFILES_FILE, 'utf-8');
+      inMemoryUsers = JSON.parse(raw);
+      if (inMemoryUsers && inMemoryUsers.length > 0) {
+        return inMemoryUsers;
+      }
+    }
+  } catch {}
+
+  inMemoryUsers = [...DEFAULT_USERS];
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(PROFILES_FILE, JSON.stringify(inMemoryUsers, null, 2), 'utf-8');
+  } catch {}
+
+  return inMemoryUsers;
+}
+
+export function saveStoredUser(user: Partial<StoredUser> & { id: string }): StoredUser {
+  const users = getAllStoredUsers();
+  const index = users.findIndex((u) => u.id === user.id);
+
+  let updated: StoredUser;
+  if (index >= 0) {
+    updated = { ...users[index], ...user };
+    users[index] = updated;
+  } else {
+    updated = user as StoredUser;
+    users.push(updated);
+  }
+
+  inMemoryUsers = users;
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(PROFILES_FILE, JSON.stringify(users, null, 2), 'utf-8');
+  } catch {}
+
+  return updated;
+}
+
+export function findUserByEmail(email: string): StoredUser | undefined {
+  const users = getAllStoredUsers();
+  return users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+}
+
+export function findUserById(id: string): StoredUser | undefined {
+  const users = getAllStoredUsers();
+  return users.find((u) => u.id === id);
+}
+
 // Hash plain password
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -55,25 +125,37 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-// Sign JWT token
+// Sign JWT token - Keep token small so it NEVER exceeds the 4096-byte cookie limit
 export async function signToken(payload: UserSession): Promise<string> {
-  return new SignJWT({ ...payload })
+  // If avatar_url is long (base64 data URL), omit from JWT cookie payload
+  const tokenPayload = {
+    id: payload.id,
+    email: payload.email,
+    full_name: payload.full_name,
+    role: payload.role,
+    avatar_url: payload.avatar_url && payload.avatar_url.length < 200 ? payload.avatar_url : null,
+  };
+
+  return new SignJWT(tokenPayload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(JWT_SECRET);
 }
 
-// Verify JWT token
+// Verify JWT token & populate latest user profile from storage
 export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
+    const userId = payload.id as string;
+    const stored = findUserById(userId);
+
     return {
-      id: payload.id as string,
-      email: payload.email as string,
-      full_name: payload.full_name as string,
-      role: (payload.role as 'admin' | 'member') || 'member',
-      avatar_url: (payload.avatar_url as string) || null,
+      id: userId,
+      email: (stored?.email || payload.email) as string,
+      full_name: (stored?.full_name || payload.full_name) as string,
+      role: (stored?.role || payload.role || 'member') as 'admin' | 'member',
+      avatar_url: stored?.avatar_url || (payload.avatar_url as string) || null,
     };
   } catch {
     return null;

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSessionUser, comparePassword, hashPassword, DEFAULT_USERS } from '@/lib/auth';
+import { getSessionUser, comparePassword, hashPassword, findUserById, saveStoredUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userRecord) {
-      userRecord = DEFAULT_USERS.find((u) => u.id === session.id);
+      userRecord = findUserById(session.id);
     }
 
     if (!userRecord) {
@@ -61,10 +61,17 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', session.id);
     } catch {
-      userRecord.password_hash = newHash;
+      // Fallback
     }
 
-    return successResponse({ message: 'رمز عبور با موفقیت تغییر یافت' });
+    saveStoredUser({ id: session.id, password_hash: newHash });
+
+    return successResponse(
+      { message: 'رمز عبور با موفقیت تغییر کرد' },
+      200,
+      undefined,
+      'رمز عبور با موفقیت تغییر کرد'
+    );
   } catch (err: any) {
     return errorResponse(err.message || 'خطا در تغییر رمز عبور', 500);
   }

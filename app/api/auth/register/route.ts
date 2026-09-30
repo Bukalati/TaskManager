@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { hashPassword, signToken, COOKIE_NAME, DEFAULT_USERS } from '@/lib/auth';
+import { hashPassword, signToken, COOKIE_NAME, findUserByEmail, saveStoredUser } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       // Fallback check
     }
 
-    if (!exists && DEFAULT_USERS.some((u) => u.email.toLowerCase() === cleanEmail)) {
+    if (!exists && findUserByEmail(cleanEmail)) {
       exists = true;
     }
 
@@ -55,13 +55,15 @@ export async function POST(request: NextRequest) {
       avatar_url: null,
     };
 
-    // Try saving to Supabase
+    // Always persist in stored users
+    saveStoredUser(newProfile);
+
+    // Try saving to Supabase if table exists
     try {
       const client = supabase.client;
       await client.from('profiles').insert([newProfile]);
     } catch {
-      // If table not present yet, store in DEFAULT_USERS
-      DEFAULT_USERS.push(newProfile);
+      // Ignored
     }
 
     const sessionPayload = {
@@ -92,6 +94,6 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err: any) {
-    return errorResponse(err.message || 'خطا در ثبت‌نام', 500);
+    return errorResponse(err.message || 'خطا در فرآیند ثبت‌نام', 500);
   }
 }

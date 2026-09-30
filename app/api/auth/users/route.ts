@@ -1,15 +1,10 @@
 import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { getSessionUser, DEFAULT_USERS } from '@/lib/auth';
+import { getAllStoredUsers } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const session = await getSessionUser(request);
-    if (!session) {
-      return errorResponse('احراز هویت نشده‌اید', 401);
-    }
-
     let usersList: any[] = [];
 
     try {
@@ -27,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (usersList.length === 0) {
-      usersList = DEFAULT_USERS.map(({ password_hash, ...u }) => u);
+      usersList = getAllStoredUsers().map(({ password_hash, ...u }) => u);
     }
 
     return successResponse(usersList);

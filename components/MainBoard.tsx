@@ -27,6 +27,8 @@ import {
   Check,
   Zap,
   CalendarDays,
+  Lock,
+  User,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, UserSummary } from "../types/task";
 import ComicDatePicker from "./ComicDatePicker";
@@ -118,6 +120,12 @@ const DICTIONARY = {
     unassigned: "بدون مسئول (عمومی)",
     assignedToMeHint: "این تسک به شما محول شده است",
     createdByHint: "سازنده:",
+    creatorLabel: "سازنده:",
+    assigneeBadge: "مسئول:",
+    publicTask: "عمومی (بدون مسئول)",
+    lockedTaskHint: "تنها فرد مسئول یا مدیر می‌تواند وضعیت این تسک را تغییر دهد",
+    lockedCardHint: "قفل - فقط مسئول تسک اجازه جابجایی دارد",
+    loginRequiredHint: "برای ایجاد، ویرایش یا جابجایی تسک‌ها لطفاً وارد حساب خود شوید",
   },
   en: {
     appTitle: "Task Manager",
@@ -197,6 +205,12 @@ const DICTIONARY = {
     unassigned: "Unassigned (Public)",
     assignedToMeHint: "Assigned to you",
     createdByHint: "Created by:",
+    creatorLabel: "Creator:",
+    assigneeBadge: "Assignee:",
+    publicTask: "Public (Unassigned)",
+    lockedTaskHint: "Only the assigned user or admin can move this task",
+    lockedCardHint: "Locked - Only assignee can move",
+    loginRequiredHint: "Please log in to create, edit or move tasks",
   },
 };
 
@@ -589,12 +603,10 @@ export default function TaskBoard() {
         priorityFilter === "ALL" || task.priority === priorityFilter;
 
       let matchesTab = true;
-      if (currentUser) {
-        if (taskTabFilter === "ASSIGNED_TO_ME") {
-          matchesTab = task.assigned_to === currentUser.id;
-        } else if (taskTabFilter === "CREATED_BY_ME") {
-          matchesTab = task.created_by === currentUser.id;
-        }
+      if (taskTabFilter === "ASSIGNED_TO_ME") {
+        matchesTab = !!currentUser && task.assigned_to === currentUser.id;
+      } else if (taskTabFilter === "CREATED_BY_ME") {
+        matchesTab = !!currentUser && task.created_by === currentUser.id;
       }
 
       return matchesSearch && matchesPriority && matchesTab;
@@ -618,7 +630,31 @@ export default function TaskBoard() {
       }
       return 0;
     });
-  }, [tasks, searchQuery, priorityFilter, sortBy]);
+  }, [tasks, searchQuery, priorityFilter, sortBy, taskTabFilter, currentUser]);
+
+  // Permission helpers
+  const canMoveTask = (task: Task) => {
+    if (!currentUser) return false;
+    if (currentUser.role === "admin") return true;
+    if (task.assigned_to) {
+      return task.assigned_to === currentUser.id;
+    }
+    return true; // Unassigned task can be moved by any logged-in user
+  };
+
+  const canEditTask = (task: Task) => {
+    if (!currentUser) return false;
+    if (currentUser.role === "admin") return true;
+    return (
+      task.created_by === currentUser.id || task.assigned_to === currentUser.id
+    );
+  };
+
+  const canDeleteTask = (task: Task) => {
+    if (!currentUser) return false;
+    if (currentUser.role === "admin") return true;
+    return task.created_by === currentUser.id;
+  };
 
   // Bento counts
   const stats = useMemo(() => {
@@ -629,8 +665,13 @@ export default function TaskBoard() {
     return { total, todo, inProgress, done };
   }, [tasks]);
 
-  // Open modal with priority set to null by default
+  // Open modal with priority set to null by default (auth guarded)
   const handleOpenCreateModal = (defaultStatus: TaskStatus = "TODO") => {
+    if (!currentUser) {
+      showToast(t.loginRequiredHint);
+      setIsAuthModalOpen(true);
+      return;
+    }
     setEditingTask(null);
     setFormData({
       title: "",
@@ -645,6 +686,19 @@ export default function TaskBoard() {
   };
 
   const handleOpenEditModal = (task: Task) => {
+    if (!currentUser) {
+      showToast(t.loginRequiredHint);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!canEditTask(task)) {
+      showToast(
+        lang === "fa"
+          ? "تنها ایجادکننده، مسئول تسک یا مدیر مجاز به ویرایش این تسک هستند"
+          : "Only creator, assignee or admin can edit this task",
+      );
+      return;
+    }
     setEditingTask(task);
     setFormData({
       title: task.title,
@@ -747,7 +801,35 @@ export default function TaskBoard() {
     }
   };
 
+  const handleRequestDelete = (task: Task) => {
+    if (!currentUser) {
+      showToast(t.loginRequiredHint);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!canDeleteTask(task)) {
+      showToast(
+        lang === "fa"
+          ? "تنها ایجادکننده تسک یا مدیر مجاز به حذف آن هستند"
+          : "Only creator or admin can delete this task",
+      );
+      return;
+    }
+    setTaskToDelete(task.id);
+  };
+
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!currentUser) {
+      showToast(t.loginRequiredHint);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (task && !canMoveTask(task)) {
+      showToast(t.lockedTaskHint);
+      return;
+    }
+
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
     );
@@ -758,8 +840,15 @@ export default function TaskBoard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("Error updating status");
-    } catch {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error updating status");
+      if (json.data) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, ...json.data } : t)),
+        );
+      }
+    } catch (err: any) {
+      showToast(err.message || "Error updating status");
       fetchTasks();
     }
   };
@@ -777,6 +866,18 @@ export default function TaskBoard() {
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!currentUser) {
+      e.preventDefault();
+      showToast(t.loginRequiredHint);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (task && !canMoveTask(task)) {
+      e.preventDefault();
+      showToast(t.lockedTaskHint);
+      return;
+    }
     setDraggingTaskId(id);
     e.dataTransfer.setData("text/plain", id);
   };
@@ -1290,6 +1391,7 @@ export default function TaskBoard() {
               type="button"
               onClick={() => {
                 if (!currentUser) {
+                  showToast(t.loginRequiredHint);
                   setIsAuthModalOpen(true);
                   return;
                 }
@@ -1353,6 +1455,7 @@ export default function TaskBoard() {
               type="button"
               onClick={() => {
                 if (!currentUser) {
+                  showToast(t.loginRequiredHint);
                   setIsAuthModalOpen(true);
                   return;
                 }
@@ -2042,7 +2145,7 @@ export default function TaskBoard() {
                         return (
                           <div
                             key={task.id}
-                            draggable
+                            draggable={canMoveTask(task)}
                             onDragStart={(e) => handleDragStart(e, task.id)}
                             style={{
                               backgroundColor: isDark ? "#1e293b" : "#FFFFFF",
@@ -2050,17 +2153,20 @@ export default function TaskBoard() {
                               boxShadow: "3px 3px 0 " + colors.shadow,
                               borderRadius: "12px",
                               padding: "16px",
-                              cursor: "grab",
+                              cursor: canMoveTask(task) ? "grab" : "default",
                               display: "flex",
                               flexDirection: "column",
                               gap: "12px",
                               transition: "all 0.15s ease",
+                              opacity: canMoveTask(task) ? 1 : 0.95,
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.transform =
-                                "translate(-2px, -2px)";
-                              e.currentTarget.style.boxShadow =
-                                "5px 5px 0 " + colors.shadow;
+                              if (canMoveTask(task)) {
+                                e.currentTarget.style.transform =
+                                  "translate(-2px, -2px)";
+                                e.currentTarget.style.boxShadow =
+                                  "5px 5px 0 " + colors.shadow;
+                              }
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.transform = "none";
@@ -2097,27 +2203,28 @@ export default function TaskBoard() {
                               </h3>
 
                               <div style={{ display: "flex", gap: "6px" }}>
-                                <button
-                                  onClick={() => handleOpenEditModal(task)}
-                                  title="Edit"
-                                  className="neo-btn"
-                                  style={{
-                                    padding: "4px 6px",
-                                    backgroundColor: isDark
-                                      ? "#334155"
-                                      : "#FFFFFF",
-                                    color: colors.textMain,
-                                    border: colors.borderCol,
-                                    boxShadow: "2px 2px 0 " + colors.shadow,
-                                  }}
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-
-                                {/* Only show trash icon if NOT in DONE column */}
-                                {task.status !== "DONE" && (
+                                {canEditTask(task) && (
                                   <button
-                                    onClick={() => setTaskToDelete(task.id)}
+                                    onClick={() => handleOpenEditModal(task)}
+                                    title="Edit"
+                                    className="neo-btn"
+                                    style={{
+                                      padding: "4px 6px",
+                                      backgroundColor: isDark
+                                        ? "#334155"
+                                        : "#FFFFFF",
+                                      color: colors.textMain,
+                                      border: colors.borderCol,
+                                      boxShadow: "2px 2px 0 " + colors.shadow,
+                                    }}
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                )}
+
+                                {canDeleteTask(task) && task.status !== "DONE" && (
+                                  <button
+                                    onClick={() => handleRequestDelete(task)}
                                     title="Delete"
                                     className="neo-btn"
                                     style={{
@@ -2149,6 +2256,151 @@ export default function TaskBoard() {
                               </p>
                             )}
 
+                            {/* People Info: Creator & Assignee */}
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "6px",
+                                padding: "8px 10px",
+                                backgroundColor: isDark ? "#0f172a" : "#F8FAFC",
+                                borderRadius: "8px",
+                                border: "1.5px solid " + (isDark ? "#334155" : "#E2E8F0"),
+                              }}
+                            >
+                              {/* Creator */}
+                              {(() => {
+                                const creatorUser =
+                                  task.creator ||
+                                  (task.created_by
+                                    ? usersList.find((u) => u.id === task.created_by)
+                                    : null);
+                                return (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      fontSize: "11px",
+                                    }}
+                                  >
+                                    <span style={{ color: colors.textMuted, fontWeight: 700 }}>
+                                      {t.creatorLabel}
+                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      <div
+                                        style={{
+                                          width: "18px",
+                                          height: "18px",
+                                          borderRadius: "50%",
+                                          backgroundColor: "#E2E8F0",
+                                          border: "1px solid #000000",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          overflow: "hidden",
+                                          fontSize: "10px",
+                                        }}
+                                      >
+                                        {creatorUser?.avatar_url ? (
+                                          <img
+                                            src={creatorUser.avatar_url}
+                                            alt=""
+                                            style={{
+                                              width: "100%",
+                                              height: "100%",
+                                              objectFit: "cover",
+                                            }}
+                                          />
+                                        ) : (
+                                          (creatorUser?.full_name || creatorUser?.name || "C").charAt(0)
+                                        )}
+                                      </div>
+                                      <span style={{ fontWeight: 800, color: colors.textMain }}>
+                                        {creatorUser?.full_name || creatorUser?.name || "سیستم"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Assignee */}
+                              {(() => {
+                                const assigneeUser =
+                                  task.assignee ||
+                                  (task.assigned_to
+                                    ? usersList.find((u) => u.id === task.assigned_to)
+                                    : null);
+                                const isAssignedToCurrent =
+                                  !!currentUser && currentUser.id === task.assigned_to;
+
+                                return (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      fontSize: "11px",
+                                    }}
+                                  >
+                                    <span style={{ color: colors.textMuted, fontWeight: 700 }}>
+                                      {t.assigneeBadge}
+                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      <div
+                                        style={{
+                                          width: "18px",
+                                          height: "18px",
+                                          borderRadius: "50%",
+                                          backgroundColor: isAssignedToCurrent ? "#38BDF8" : "#FFE600",
+                                          border: "1px solid #000000",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          overflow: "hidden",
+                                          fontSize: "10px",
+                                        }}
+                                      >
+                                        {assigneeUser?.avatar_url ? (
+                                          <img
+                                            src={assigneeUser.avatar_url}
+                                            alt=""
+                                            style={{
+                                              width: "100%",
+                                              height: "100%",
+                                              objectFit: "cover",
+                                            }}
+                                          />
+                                        ) : (
+                                          (assigneeUser?.full_name || assigneeUser?.name || "👤").charAt(0)
+                                        )}
+                                      </div>
+                                      <span style={{ fontWeight: 900, color: colors.textMain }}>
+                                        {assigneeUser
+                                          ? (assigneeUser.full_name || assigneeUser.name)
+                                          : t.unassigned}
+                                      </span>
+                                      {isAssignedToCurrent && (
+                                        <span
+                                          style={{
+                                            backgroundColor: "#4EFA8A",
+                                            color: "#000000",
+                                            borderRadius: "4px",
+                                            padding: "0 4px",
+                                            fontSize: "9px",
+                                            fontWeight: 900,
+                                            border: "1px solid #000000",
+                                          }}
+                                        >
+                                          {lang === "fa" ? "شما" : "You"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
                             {/* Card Badges: Priority & Due Date */}
                             <div
                               style={{
@@ -2157,10 +2409,7 @@ export default function TaskBoard() {
                                 justifyContent: "space-between",
                                 flexWrap: "wrap",
                                 gap: "8px",
-                                paddingTop: "8px",
-                                borderTop: isDark
-                                  ? "2px dashed #334155"
-                                  : "2px dashed #E5E7EB",
+                                paddingTop: "4px",
                               }}
                             >
                               <span
@@ -2212,192 +2461,120 @@ export default function TaskBoard() {
                                   </span>
                                 </div>
                               )}
+                            </div>
 
-                              {/* Assignee / Responsible User Badge */}
-                              {(() => {
-                                const assigneeUser =
-                                  task.assignee ||
-                                  (task.assigned_to
-                                    ? usersList.find(
-                                        (u) => u.id === task.assigned_to,
+                            {/* Card Bottom: Quick Move buttons OR Locked Indicator */}
+                            {canMoveTask(task) ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  marginTop: "4px",
+                                }}
+                              >
+                                {task.status !== "TODO" && (
+                                  <button
+                                    onClick={() =>
+                                      handleUpdateStatus(
+                                        task.id,
+                                        task.status === "DONE"
+                                          ? "IN_PROGRESS"
+                                          : "TODO",
                                       )
-                                    : null);
-                                if (!assigneeUser) return null;
-                                const isAssignedToCurrent =
-                                  currentUser?.id === assigneeUser.id;
-
-                                return (
-                                  <div
-                                    title={
-                                      isAssignedToCurrent
-                                        ? t.assignedToMeHint
-                                        : `${t.assigneeLabel}: ${assigneeUser.full_name || assigneeUser.name || ""}`
                                     }
+                                    className="neo-btn"
                                     style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "5px",
-                                      backgroundColor: isAssignedToCurrent
-                                        ? "#38BDF8"
-                                        : isDark
-                                          ? "#0f172a"
-                                          : "#F1F5F9",
-                                      color: isAssignedToCurrent
-                                        ? "#000000"
-                                        : colors.textMain,
-                                      border: "1.5px solid #000000",
-                                      boxShadow: "1.5px 1.5px 0 #000000",
-                                      borderRadius: "999px",
-                                      padding: "2px 8px 2px 3px",
-                                      fontSize: "11px",
-                                      fontWeight: 800,
+                                      backgroundColor: isDark
+                                        ? "#334155"
+                                        : "#FFFFFF",
+                                      color: colors.textMain,
+                                      border: colors.borderCol,
+                                      boxShadow: "2px 2px 0 " + colors.shadow,
+                                      padding: "4px 10px",
+                                      fontSize: "13px",
                                     }}
                                   >
-                                    <div
-                                      style={{
-                                        width: "18px",
-                                        height: "18px",
-                                        borderRadius: "50%",
-                                        backgroundColor: "#FFE600",
-                                        border: "1px solid #000000",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        overflow: "hidden",
-                                        fontSize: "10px",
-                                      }}
-                                    >
-                                      {assigneeUser.avatar_url ? (
-                                        <img
-                                          src={assigneeUser.avatar_url}
-                                          alt=""
-                                          style={{
-                                            width: "100%",
-                                            height: "100%",
-                                            objectFit: "cover",
-                                          }}
-                                        />
-                                      ) : (
-                                        (assigneeUser.full_name || assigneeUser.name || "U").charAt(0)
-                                      )}
-                                    </div>
-                                    <span
-                                      style={{
-                                        maxWidth: "85px",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {assigneeUser.full_name || assigneeUser.name || ""}
-                                    </span>
-                                    {isAssignedToCurrent && (
-                                      <span
-                                        style={{
-                                          backgroundColor: "#000000",
-                                          color: "#FFFFFF",
-                                          borderRadius: "4px",
-                                          padding: "0 3px",
-                                          fontSize: "9px",
-                                        }}
-                                      >
-                                        {lang === "fa" ? "شما" : "You"}
-                                      </span>
+                                    {isRTL ? (
+                                      <ArrowRight size={13} />
+                                    ) : (
+                                      <ArrowLeft size={13} />
                                     )}
-                                  </div>
-                                );
-                              })()}
-                            </div>
+                                    {t.back}
+                                  </button>
+                                )}
 
-                            {/* Card Bottom Quick Move buttons */}
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: "8px",
-                                marginTop: "4px",
-                              }}
-                            >
-                              {task.status !== "TODO" && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(
-                                      task.id,
-                                      task.status === "DONE"
-                                        ? "IN_PROGRESS"
-                                        : "TODO",
-                                    )
-                                  }
-                                  className="neo-btn"
-                                  style={{
-                                    backgroundColor: isDark
-                                      ? "#334155"
-                                      : "#FFFFFF",
-                                    color: colors.textMain,
-                                    border: colors.borderCol,
-                                    boxShadow: "2px 2px 0 " + colors.shadow,
-                                    padding: "4px 10px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  {isRTL ? (
-                                    <ArrowRight size={13} />
-                                  ) : (
-                                    <ArrowLeft size={13} />
-                                  )}
-                                  {t.back}
-                                </button>
-                              )}
-
-                              {task.status !== "DONE" && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(
-                                      task.id,
-                                      task.status === "TODO"
-                                        ? "IN_PROGRESS"
-                                        : "DONE",
-                                    )
-                                  }
-                                  className="neo-btn"
-                                  style={{
-                                    backgroundColor:
-                                      task.status === "IN_PROGRESS"
-                                        ? "#4EFA8A"
-                                        : "#38BDF8",
-                                    color: "#000000",
-                                    border: "2px solid #000000",
-                                    boxShadow: "2px 2px 0 #000000",
-                                    padding: "4px 12px",
-                                    fontSize: "13px",
-                                    [isRTL ? "marginRight" : "marginLeft"]:
-                                      "auto",
-                                  }}
-                                >
-                                  {task.status === "IN_PROGRESS" ? (
-                                    <>
-                                      <CheckCircle2 size={14} />
-                                      {t.completeTask}
-                                    </>
-                                  ) : (
-                                    <>
-                                      {t.startTask}
-                                      {isRTL ? (
-                                        <ArrowLeft size={14} />
-                                      ) : (
-                                        <ArrowRight size={14} />
-                                      )}
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                                {task.status !== "DONE" && (
+                                  <button
+                                    onClick={() =>
+                                      handleUpdateStatus(
+                                        task.id,
+                                        task.status === "TODO"
+                                          ? "IN_PROGRESS"
+                                          : "DONE",
+                                      )
+                                    }
+                                    className="neo-btn"
+                                    style={{
+                                      backgroundColor:
+                                        task.status === "IN_PROGRESS"
+                                          ? "#4EFA8A"
+                                          : "#38BDF8",
+                                      color: "#000000",
+                                      border: "2px solid #000000",
+                                      boxShadow: "2px 2px 0 #000000",
+                                      padding: "4px 12px",
+                                      fontSize: "13px",
+                                      [isRTL ? "marginRight" : "marginLeft"]:
+                                        "auto",
+                                    }}
+                                  >
+                                    {task.status === "IN_PROGRESS" ? (
+                                      <>
+                                        <CheckCircle2 size={14} />
+                                        {t.completeTask}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {t.startTask}
+                                        {isRTL ? (
+                                          <ArrowLeft size={14} />
+                                        ) : (
+                                          <ArrowRight size={14} />
+                                        )}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "6px",
+                                  padding: "6px 10px",
+                                  backgroundColor: isDark ? "#0f172a" : "#F1F5F9",
+                                  borderRadius: "8px",
+                                  border: "1.5px dashed " + (isDark ? "#475569" : "#CBD5E1"),
+                                  fontSize: "12px",
+                                  fontWeight: 800,
+                                  color: colors.textMuted,
+                                  marginTop: "4px",
+                                }}
+                                title={t.lockedCardHint}
+                              >
+                                <Lock size={13} color="#FF66C4" />
+                                <span>{t.lockedCardHint}</span>
+                              </div>
+                            )}
 
                             {/* SPECIAL DEDICATED DELETE BUTTON IN COMPLETED (DONE) COLUMN */}
-                            {task.status === "DONE" && (
+                            {task.status === "DONE" && canDeleteTask(task) && (
                               <button
-                                onClick={() => setTaskToDelete(task.id)}
+                                onClick={() => handleRequestDelete(task)}
                                 className="neo-btn"
                                 style={{
                                   backgroundColor: "#FF66C4",

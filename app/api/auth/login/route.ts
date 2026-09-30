@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { comparePassword, signToken, COOKIE_NAME, DEFAULT_USERS } from '@/lib/auth';
+import { comparePassword, signToken, COOKIE_NAME, findUserByEmail } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function POST(request: NextRequest) {
@@ -31,9 +31,9 @@ export async function POST(request: NextRequest) {
       // Fallback
     }
 
-    // Fallback to default users if not found in DB
+    // Fallback to stored users if not found in DB
     if (!userRecord) {
-      userRecord = DEFAULT_USERS.find((u) => u.email.toLowerCase() === cleanEmail);
+      userRecord = findUserByEmail(cleanEmail);
     }
 
     if (!userRecord) {

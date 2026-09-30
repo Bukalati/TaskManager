@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { getSessionUser, DEFAULT_USERS } from '@/lib/auth';
+import { getSessionUser, saveStoredUser } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function PATCH(
@@ -40,10 +40,7 @@ export async function PATCH(
       // Fallback
     }
 
-    const fallbackUser = DEFAULT_USERS.find((u) => u.id === targetUserId);
-    if (fallbackUser) {
-      fallbackUser.role = role;
-    }
+    saveStoredUser({ id: targetUserId, role });
 
     return successResponse({
       id: targetUserId,
