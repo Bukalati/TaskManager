@@ -13,55 +13,142 @@ import {
   X,
   AlertTriangle,
   RotateCcw,
-  Sparkles,
   Layers,
   Flame,
   CheckSquare,
   Clock,
-  Compass,
+  Languages,
 } from 'lucide-react';
 import type { Task, TaskStatus, TaskPriority } from '../types/task';
 
-const STATUS_COLUMNS: {
-  id: TaskStatus;
-  title: string;
-  badgeBg: string;
-  accentColor: string;
-  labelEn: string;
-}[] = [
-  {
-    id: 'TODO',
-    title: 'برای انجام',
-    badgeBg: '#FFE600',
-    accentColor: '#FFE600',
-    labelEn: 'TODO',
+// Multilingual text dictionary
+const DICTIONARY = {
+  fa: {
+    appTitle: 'مدیریت تسک‌ها',
+    boardVersion: '✦ BOARD v2.0',
+    searchPlaceholder: '🔍 جستجو در تسک‌ها...',
+    allPriorities: 'همه اولویت‌ها',
+    highPriority: 'فقط فوری (High)',
+    medPriority: 'فقط متوسط (Medium)',
+    lowPriority: 'فقط کم (Low)',
+    newTask: 'تسک جدید',
+    refresh: 'بارگذاری مجدد',
+    totalTasks: '[ ۰۱ ] کل تسک‌ها',
+    inProgressStats: '[ ۰۲ ] در حال اجرا',
+    doneStats: '[ ۰۳ ] انجام شده',
+    todoStats: '[ ۰۴ ] مانده برای انجام',
+    loading: '⚡ در حال دریافت اطلاعات از سرور...',
+    emptyTitle: 'هنوز هیچ تسکی اضافه نکردید!',
+    emptyDesc: 'میز کار شما در حال حاضر کاملاً تمیز و خالیه. برای شروع مدیریت و برنامه‌ریزی، اولین تسک خودت رو بساز!',
+    createFirstTask: 'ساخت اولین تسک',
+    noTasksInCol: 'تسکی در این بخش نیست',
+    createTaskModalTitle: 'ایجاد تسک جدید',
+    editTaskModalTitle: 'ویرایش تسک',
+    titleLabel: 'عنوان تسک *',
+    titlePlaceholder: 'مثلاً: طراحی دیتابیس یا جلسه با تیم',
+    descLabel: 'توضیحات (اختیاری)',
+    descPlaceholder: 'جزئیات و نکات مربوط به تسک...',
+    priorityLabel: 'اولویت',
+    selectPriority: 'انتخاب اولویت:',
+    dueDateLabel: 'مهلت انجام (اختیاری)',
+    cancel: 'انصراف',
+    save: 'ذخیره تغییرات',
+    create: 'ایجاد تسک',
+    saving: 'در حال ذخیره...',
+    titleRequired: 'عنوان تسک الزامی است',
+    back: 'به عقب',
+    startTask: 'شروع کار',
+    completeTask: 'تکمیل شد',
+    deleteTaskBtn: '🗑️ حذف تسک',
+    deleteConfirm: 'آیا از حذف این تسک اطمینان دارید؟',
+    quickDates: {
+      today: 'امروز',
+      tomorrow: 'فردا',
+      nextWeek: 'هفته بعد',
+      clear: 'بدون تاریخ',
+    },
+    cols: {
+      TODO: 'برای انجام',
+      IN_PROGRESS: 'در حال انجام',
+      DONE: 'انجام شده',
+    },
+    priorities: {
+      LOW: 'کم (Low)',
+      MEDIUM: 'متوسط (Medium)',
+      HIGH: 'فوری (High)',
+    },
   },
-  {
-    id: 'IN_PROGRESS',
-    title: 'در حال انجام',
-    badgeBg: '#38BDF8',
-    accentColor: '#38BDF8',
-    labelEn: 'IN PROGRESS',
+  en: {
+    appTitle: 'Task Manager',
+    boardVersion: '✦ BOARD v2.0',
+    searchPlaceholder: '🔍 Search tasks...',
+    allPriorities: 'All Priorities',
+    highPriority: 'High Priority',
+    medPriority: 'Medium Priority',
+    lowPriority: 'Low Priority',
+    newTask: 'New Task',
+    refresh: 'Refresh',
+    totalTasks: '[ 01 ] Total Tasks',
+    inProgressStats: '[ 02 ] In Progress',
+    doneStats: '[ 03 ] Completed',
+    todoStats: '[ 04 ] Pending (To Do)',
+    loading: '⚡ Loading data from server...',
+    emptyTitle: 'No tasks added yet!',
+    emptyDesc: 'Your workspace is completely empty. Create your first task to get things moving!',
+    createFirstTask: 'Create First Task',
+    noTasksInCol: 'No tasks in this section',
+    createTaskModalTitle: 'Create New Task',
+    editTaskModalTitle: 'Edit Task',
+    titleLabel: 'Task Title *',
+    titlePlaceholder: 'e.g. Design database or client meeting',
+    descLabel: 'Description (Optional)',
+    descPlaceholder: 'Notes and details about the task...',
+    priorityLabel: 'Priority',
+    selectPriority: 'Select Priority:',
+    dueDateLabel: 'Due Date (Optional)',
+    cancel: 'Cancel',
+    save: 'Save Changes',
+    create: 'Create Task',
+    saving: 'Saving...',
+    titleRequired: 'Task title is required',
+    back: 'Back',
+    startTask: 'Start Work',
+    completeTask: 'Complete',
+    deleteTaskBtn: '🗑️ Delete Task',
+    deleteConfirm: 'Are you sure you want to delete this task?',
+    quickDates: {
+      today: 'Today',
+      tomorrow: 'Tomorrow',
+      nextWeek: 'Next Week',
+      clear: 'No Date',
+    },
+    cols: {
+      TODO: 'To Do',
+      IN_PROGRESS: 'In Progress',
+      DONE: 'Completed',
+    },
+    priorities: {
+      LOW: 'Low',
+      MEDIUM: 'Medium',
+      HIGH: 'High',
+    },
   },
-  {
-    id: 'DONE',
-    title: 'انجام شده',
-    badgeBg: '#4EFA8A',
-    accentColor: '#4EFA8A',
-    labelEn: 'DONE',
-  },
-];
+};
 
-const PRIORITY_CONFIG: Record<
+const PRIORITY_THEME: Record<
   TaskPriority,
-  { label: string; bg: string; color: string }
+  { bg: string; color: string; border: string }
 > = {
-  LOW: { label: 'کم (LOW)', bg: '#E4D4F4', color: '#000000' },
-  MEDIUM: { label: 'متوسط (MED)', bg: '#FFE600', color: '#000000' },
-  HIGH: { label: 'فوری (HIGH)', bg: '#FF66C4', color: '#000000' },
+  LOW: { bg: '#E4D4F4', color: '#000000', border: '#000000' },
+  MEDIUM: { bg: '#FFE600', color: '#000000', border: '#000000' },
+  HIGH: { bg: '#FF66C4', color: '#000000', border: '#000000' },
 };
 
 export default function KanbanPage() {
+  const [lang, setLang] = useState<'fa' | 'en'>('fa');
+  const t = DICTIONARY[lang];
+  const isRTL = lang === 'fa';
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,12 +161,18 @@ export default function KanbanPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Form Fields
-  const [formData, setFormData] = useState({
+  // Form Fields (Status removed from modal, priority has toggle state)
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    status: TaskStatus;
+    priority: TaskPriority | null;
+    due_date: string;
+  }>({
     title: '',
     description: '',
-    status: 'TODO' as TaskStatus,
-    priority: 'MEDIUM' as TaskPriority,
+    status: 'TODO',
+    priority: 'MEDIUM',
     due_date: '',
   });
 
@@ -128,7 +221,7 @@ export default function KanbanPage() {
     });
   }, [tasks, searchQuery, priorityFilter]);
 
-  // Counts for Bento Grid
+  // Bento counts
   const stats = useMemo(() => {
     const total = tasks.length;
     const todo = tasks.filter((t) => t.status === 'TODO').length;
@@ -157,7 +250,7 @@ export default function KanbanPage() {
       description: task.description || '',
       status: task.status,
       priority: task.priority,
-      due_date: task.due_date ? task.due_date.substring(0, 16) : '',
+      due_date: task.due_date ? task.due_date.substring(0, 10) : '',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -166,7 +259,7 @@ export default function KanbanPage() {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) {
-      setFormError('عنوان تسک الزامی است');
+      setFormError(t.titleRequired);
       return;
     }
 
@@ -178,7 +271,7 @@ export default function KanbanPage() {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         status: formData.status,
-        priority: formData.priority,
+        priority: formData.priority || 'MEDIUM',
         due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
       };
 
@@ -189,7 +282,7 @@ export default function KanbanPage() {
           body: JSON.stringify(payload),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'خطا در ویرایش تسک');
+        if (!res.ok) throw new Error(json.error || 'Error updating task');
 
         setTasks((prev) =>
           prev.map((t) => (t.id === editingTask.id ? json.data : t))
@@ -201,7 +294,7 @@ export default function KanbanPage() {
           body: JSON.stringify(payload),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'خطا در ایجاد تسک');
+        if (!res.ok) throw new Error(json.error || 'Error creating task');
 
         setTasks((prev) => [json.data, ...prev]);
       }
@@ -211,7 +304,7 @@ export default function KanbanPage() {
       if (err instanceof Error) {
         setFormError(err.message);
       } else {
-        setFormError('خطایی در ذخیره تسک رخ داد');
+        setFormError('Error saving task');
       }
     } finally {
       setSubmitting(false);
@@ -219,17 +312,17 @@ export default function KanbanPage() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (!confirm('آیا از حذف این تسک اطمینان دارید؟')) return;
+    if (!confirm(t.deleteConfirm)) return;
 
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         const json = await res.json();
-        throw new Error(json.error || 'خطا در حذف تسک');
+        throw new Error(json.error || 'Error deleting task');
       }
       setTasks((prev) => prev.filter((t) => t.id !== id));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'خطا در حذف');
+      alert(err instanceof Error ? err.message : 'Error deleting task');
     }
   };
 
@@ -244,10 +337,22 @@ export default function KanbanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error('خطا در تغییر وضعیت');
+      if (!res.ok) throw new Error('Error updating status');
     } catch {
       fetchTasks();
     }
+  };
+
+  // Quick date helper
+  const setQuickDate = (daysAhead: number | null) => {
+    if (daysAhead === null) {
+      setFormData((prev) => ({ ...prev, due_date: '' }));
+      return;
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    const dateStr = d.toISOString().split('T')[0] ?? '';
+    setFormData((prev) => ({ ...prev, due_date: dateStr }));
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -271,8 +376,15 @@ export default function KanbanPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Header Banner - Swiss / Neo-Brutalist Header */}
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Header Banner */}
       <header
         style={{
           backgroundColor: '#FFFFFF',
@@ -297,11 +409,10 @@ export default function KanbanPage() {
         >
           {/* Logo & Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* Transparent Logo with fallback */}
             <div
               style={{
-                width: '58px',
-                height: '58px',
+                width: '56px',
+                height: '56px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -326,7 +437,7 @@ export default function KanbanPage() {
             </div>
 
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <h1
                   style={{
                     fontSize: '36px',
@@ -337,7 +448,7 @@ export default function KanbanPage() {
                     textShadow: '2px 2px 0px #FFE600',
                   }}
                 >
-                  مدیریت تسک‌ها
+                  {t.appTitle}
                 </h1>
                 <span
                   style={{
@@ -349,10 +460,10 @@ export default function KanbanPage() {
                     fontSize: '12px',
                     padding: '2px 8px',
                     fontWeight: 'bold',
-                    transform: 'rotate(-2deg)',
+                    transform: isRTL ? 'rotate(-2deg)' : 'rotate(2deg)',
                   }}
                 >
-                  ✦ BOARD v2.0
+                  {t.boardVersion}
                 </span>
               </div>
             </div>
@@ -361,10 +472,10 @@ export default function KanbanPage() {
           {/* Action Toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {/* Search Input */}
-            <div style={{ position: 'relative' }}>
+            <div>
               <input
                 type="text"
-                placeholder="🔍 جستجو در تسک‌ها..."
+                placeholder={t.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="neo-input"
@@ -383,16 +494,34 @@ export default function KanbanPage() {
               className="neo-input"
               style={{ cursor: 'pointer' }}
             >
-              <option value="ALL">همه اولویت‌ها</option>
-              <option value="HIGH">فقط فوری (High)</option>
-              <option value="MEDIUM">فقط متوسط (Medium)</option>
-              <option value="LOW">فقط کم (Low)</option>
+              <option value="ALL">{t.allPriorities}</option>
+              <option value="HIGH">{t.highPriority}</option>
+              <option value="MEDIUM">{t.medPriority}</option>
+              <option value="LOW">{t.lowPriority}</option>
             </select>
+
+            {/* Language Switcher Toggle */}
+            <button
+              onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}
+              title={lang === 'fa' ? 'Switch to English' : 'تغییر به فارسی'}
+              className="neo-btn"
+              style={{
+                backgroundColor: '#E4D4F4',
+                padding: '8px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 'bold',
+              }}
+            >
+              <Languages size={18} />
+              <span>{lang === 'fa' ? 'EN' : 'فارسی'}</span>
+            </button>
 
             {/* Refresh Button */}
             <button
               onClick={fetchTasks}
-              title="بارگذاری مجدد"
+              title={t.refresh}
               className="neo-btn"
               style={{
                 backgroundColor: '#FFFFFF',
@@ -413,7 +542,7 @@ export default function KanbanPage() {
               }}
             >
               <Plus size={20} strokeWidth={2.5} />
-              تسک جدید
+              {t.newTask}
             </button>
           </div>
         </div>
@@ -450,7 +579,7 @@ export default function KanbanPage() {
           </div>
         )}
 
-        {/* Bento Grid Stats (Rendered when not empty or loading) */}
+        {/* Bento Grid Stats */}
         {!loading && tasks.length > 0 && (
           <section
             style={{
@@ -460,7 +589,6 @@ export default function KanbanPage() {
               marginBottom: '32px',
             }}
           >
-            {/* Bento Card 1: Total */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -474,7 +602,7 @@ export default function KanbanPage() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>[ 01 ] کل تسک‌ها</span>
+                <span style={{ fontSize: '13px', color: '#555555' }}>{t.totalTasks}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.total}
                 </div>
@@ -495,7 +623,6 @@ export default function KanbanPage() {
               </div>
             </div>
 
-            {/* Bento Card 2: In Progress */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -509,7 +636,7 @@ export default function KanbanPage() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>[ 02 ] در حال اجرا</span>
+                <span style={{ fontSize: '13px', color: '#555555' }}>{t.inProgressStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.inProgress}
                 </div>
@@ -530,7 +657,6 @@ export default function KanbanPage() {
               </div>
             </div>
 
-            {/* Bento Card 3: Done */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -544,7 +670,7 @@ export default function KanbanPage() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>[ 03 ] انجام شده</span>
+                <span style={{ fontSize: '13px', color: '#555555' }}>{t.doneStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.done}
                 </div>
@@ -565,7 +691,6 @@ export default function KanbanPage() {
               </div>
             </div>
 
-            {/* Bento Card 4: Todo */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -579,7 +704,7 @@ export default function KanbanPage() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>[ 04 ] مانده برای انجام</span>
+                <span style={{ fontSize: '13px', color: '#555555' }}>{t.todoStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.todo}
                 </div>
@@ -604,12 +729,7 @@ export default function KanbanPage() {
 
         {/* LOADING STATE */}
         {loading && (
-          <div
-            style={{
-              padding: '80px 20px',
-              textAlign: 'center',
-            }}
-          >
+          <div style={{ padding: '80px 20px', textAlign: 'center' }}>
             <div
               style={{
                 display: 'inline-block',
@@ -621,12 +741,12 @@ export default function KanbanPage() {
                 fontSize: '24px',
               }}
             >
-              ⚡ در حال دریافت اطلاعات از سرور...
+              {t.loading}
             </div>
           </div>
         )}
 
-        {/* EMPTY STATE - Shown ONLY when no tasks exist */}
+        {/* EMPTY STATE */}
         {!loading && tasks.length === 0 && (
           <div
             style={{
@@ -638,7 +758,6 @@ export default function KanbanPage() {
               minHeight: '480px',
             }}
           >
-            {/* Playful 3D / Collage Empty State Card */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -653,12 +772,11 @@ export default function KanbanPage() {
                 overflow: 'hidden',
               }}
             >
-              {/* Retro Y2K Sticker Top-Right */}
               <div
                 style={{
                   position: 'absolute',
                   top: '16px',
-                  left: '16px',
+                  [isRTL ? 'left' : 'right']: '16px',
                   backgroundColor: '#FF66C4',
                   border: '2px solid #000000',
                   boxShadow: '2px 2px 0 #000000',
@@ -666,7 +784,7 @@ export default function KanbanPage() {
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 'bold',
-                  transform: 'rotate(-5deg)',
+                  transform: isRTL ? 'rotate(-5deg)' : 'rotate(5deg)',
                 }}
               >
                 ★ 0 TASKS FOUND
@@ -682,7 +800,6 @@ export default function KanbanPage() {
                   xmlns="http://www.w3.org/2000/svg"
                   style={{ display: 'inline-block' }}
                 >
-                  {/* Background decorative stars and doodles */}
                   <path
                     d="M30 30L34 42L46 46L34 50L30 62L26 50L14 46L26 42Z"
                     fill="#FFE600"
@@ -699,10 +816,7 @@ export default function KanbanPage() {
                   <circle cx="35" cy="125" r="6" fill="#FF66C4" stroke="#000000" strokeWidth="2" />
 
                   {/* 3D Isometric Empty Box / Clipboard */}
-                  {/* Hard Shadow */}
                   <rect x="58" y="48" width="94" height="110" rx="14" fill="#000000" />
-                  
-                  {/* Main Clipboard Body */}
                   <rect
                     x="50"
                     y="40"
@@ -732,12 +846,12 @@ export default function KanbanPage() {
                   <line x1="68" y1="95" x2="126" y2="95" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
                   <line x1="68" y1="115" x2="110" y2="115" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
 
-                  {/* Friendly Playful Face on Box */}
+                  {/* Friendly Playful Face */}
                   <circle cx="85" cy="95" r="4" fill="#000000" />
                   <circle cx="109" cy="95" r="4" fill="#000000" />
                   <path d="M91 106C94 110 100 110 103 106" stroke="#000000" strokeWidth="3" strokeLinecap="round" />
 
-                  {/* Tilted Floating Star Badge on side */}
+                  {/* Floating Star Badge */}
                   <g transform="translate(125, 90) rotate(15)">
                     <rect x="0" y="0" width="36" height="36" rx="8" fill="#FF7A00" stroke="#000000" strokeWidth="2.5" />
                     <text x="9" y="24" fontSize="18" fill="#FFFFFF" fontWeight="bold">✦</text>
@@ -745,7 +859,6 @@ export default function KanbanPage() {
                 </svg>
               </div>
 
-              {/* Big Text */}
               <h2
                 style={{
                   fontSize: '32px',
@@ -755,7 +868,7 @@ export default function KanbanPage() {
                   lineHeight: '1.2',
                 }}
               >
-                هنوز هیچ تسکی اضافه نکردید!
+                {t.emptyTitle}
               </h2>
 
               <p
@@ -766,10 +879,9 @@ export default function KanbanPage() {
                   lineHeight: '1.6',
                 }}
               >
-                میز کار شما در حال حاضر کاملاً تمیز و خالیه. برای شروع مدیریت و برنامه‌ریزی، اولین تسک خودت رو بساز!
+                {t.emptyDesc}
               </p>
 
-              {/* Big Primary Action Button */}
               <button
                 onClick={() => handleOpenCreateModal('TODO')}
                 className="neo-btn"
@@ -781,13 +893,13 @@ export default function KanbanPage() {
                 }}
               >
                 <Plus size={24} strokeWidth={3} />
-                ساخت اولین تسک
+                {t.createFirstTask}
               </button>
             </div>
           </div>
         )}
 
-        {/* 3 KANBAN COLUMNS - Only shown when tasks exist */}
+        {/* 3 KANBAN COLUMNS */}
         {!loading && tasks.length > 0 && (
           <div
             style={{
@@ -797,16 +909,23 @@ export default function KanbanPage() {
               alignItems: 'start',
             }}
           >
-            {STATUS_COLUMNS.map((col) => {
-              const columnTasks = filteredTasks.filter((t) => t.status === col.id);
-              const isOver = dragOverColumn === col.id;
+            {(['TODO', 'IN_PROGRESS', 'DONE'] as TaskStatus[]).map((colId) => {
+              const columnTasks = filteredTasks.filter((t) => t.status === colId);
+              const isOver = dragOverColumn === colId;
+              const colTitle = t.cols[colId];
+              const badgeBg =
+                colId === 'TODO'
+                  ? '#FFE600'
+                  : colId === 'IN_PROGRESS'
+                  ? '#38BDF8'
+                  : '#4EFA8A';
 
               return (
                 <div
-                  key={col.id}
-                  onDragOver={(e) => handleDragOver(e, col.id)}
+                  key={colId}
+                  onDragOver={(e) => handleDragOver(e, colId)}
                   onDragLeave={() => setDragOverColumn(null)}
-                  onDrop={(e) => handleDrop(e, col.id)}
+                  onDrop={(e) => handleDrop(e, colId)}
                   style={{
                     backgroundColor: isOver ? '#FFFBE6' : '#FFFFFF',
                     border: '3.5px solid #000000',
@@ -834,7 +953,7 @@ export default function KanbanPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span
                         style={{
-                          backgroundColor: col.badgeBg,
+                          backgroundColor: badgeBg,
                           border: '2px solid #000000',
                           boxShadow: '2px 2px 0 #000000',
                           padding: '3px 12px',
@@ -843,7 +962,7 @@ export default function KanbanPage() {
                           fontWeight: 900,
                         }}
                       >
-                        {col.title}
+                        {colTitle}
                       </span>
                     </div>
 
@@ -862,8 +981,8 @@ export default function KanbanPage() {
                       </span>
 
                       <button
-                        onClick={() => handleOpenCreateModal(col.id)}
-                        title="افزودن به این ستون"
+                        onClick={() => handleOpenCreateModal(colId)}
+                        title="Add task"
                         className="neo-btn"
                         style={{
                           padding: '4px 8px',
@@ -889,11 +1008,12 @@ export default function KanbanPage() {
                           fontSize: '15px',
                         }}
                       >
-                        تسکی در این بخش نیست
+                        {t.noTasksInCol}
                       </div>
                     ) : (
                       columnTasks.map((task) => {
-                        const priority = PRIORITY_CONFIG[task.priority];
+                        const priorityInfo = PRIORITY_THEME[task.priority];
+                        const priorityLabel = t.priorities[task.priority];
 
                         return (
                           <div
@@ -921,7 +1041,7 @@ export default function KanbanPage() {
                               e.currentTarget.style.boxShadow = '4px 4px 0 #000000';
                             }}
                           >
-                            {/* Card Top: Title & Actions */}
+                            {/* Card Top: Title & Edit/Delete icons */}
                             <div
                               style={{
                                 display: 'flex',
@@ -947,7 +1067,7 @@ export default function KanbanPage() {
                               <div style={{ display: 'flex', gap: '6px' }}>
                                 <button
                                   onClick={() => handleOpenEditModal(task)}
-                                  title="ویرایش"
+                                  title="Edit"
                                   className="neo-btn"
                                   style={{
                                     padding: '4px 6px',
@@ -957,18 +1077,22 @@ export default function KanbanPage() {
                                 >
                                   <Edit2 size={14} />
                                 </button>
-                                <button
-                                  onClick={() => handleDeleteTask(task.id)}
-                                  title="حذف"
-                                  className="neo-btn"
-                                  style={{
-                                    padding: '4px 6px',
-                                    backgroundColor: '#FF66C4',
-                                    boxShadow: '2px 2px 0 #000000',
-                                  }}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+
+                                {/* Only show trash icon if NOT in DONE column (DONE has its own dedicated big button) */}
+                                {task.status !== 'DONE' && (
+                                  <button
+                                    onClick={() => handleDeleteTask(task.id)}
+                                    title="Delete"
+                                    className="neo-btn"
+                                    style={{
+                                      padding: '4px 6px',
+                                      backgroundColor: '#FF66C4',
+                                      boxShadow: '2px 2px 0 #000000',
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -1001,8 +1125,8 @@ export default function KanbanPage() {
                             >
                               <span
                                 style={{
-                                  backgroundColor: priority.bg,
-                                  color: priority.color,
+                                  backgroundColor: priorityInfo.bg,
+                                  color: priorityInfo.color,
                                   border: '1.5px solid #000000',
                                   boxShadow: '1.5px 1.5px 0 #000000',
                                   padding: '2px 8px',
@@ -1011,7 +1135,7 @@ export default function KanbanPage() {
                                   fontWeight: 'bold',
                                 }}
                               >
-                                {priority.label}
+                                {priorityLabel}
                               </span>
 
                               {task.due_date && (
@@ -1030,12 +1154,15 @@ export default function KanbanPage() {
                                 >
                                   <Calendar size={13} />
                                   <span>
-                                    {new Date(task.due_date).toLocaleDateString('fa-IR', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
+                                    {isRTL
+                                      ? new Date(task.due_date).toLocaleDateString('fa-IR', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })
+                                      : new Date(task.due_date).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })}
                                   </span>
                                 </div>
                               )}
@@ -1046,6 +1173,7 @@ export default function KanbanPage() {
                               style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
+                                alignItems: 'center',
                                 gap: '8px',
                                 marginTop: '4px',
                               }}
@@ -1065,8 +1193,8 @@ export default function KanbanPage() {
                                     fontSize: '13px',
                                   }}
                                 >
-                                  <ArrowRight size={13} />
-                                  به عقب
+                                  {isRTL ? <ArrowRight size={13} /> : <ArrowLeft size={13} />}
+                                  {t.back}
                                 </button>
                               )}
 
@@ -1084,23 +1212,44 @@ export default function KanbanPage() {
                                       task.status === 'IN_PROGRESS' ? '#4EFA8A' : '#38BDF8',
                                     padding: '4px 12px',
                                     fontSize: '13px',
-                                    marginRight: 'auto',
+                                    [isRTL ? 'marginRight' : 'marginLeft']: 'auto',
                                   }}
                                 >
                                   {task.status === 'IN_PROGRESS' ? (
                                     <>
                                       <CheckCircle2 size={14} />
-                                      تکمیل شد
+                                      {t.completeTask}
                                     </>
                                   ) : (
                                     <>
-                                      شروع کار
-                                      <ArrowLeft size={14} />
+                                      {t.startTask}
+                                      {isRTL ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
                                     </>
                                   )}
                                 </button>
                               )}
                             </div>
+
+                            {/* SPECIAL DEDICATED DELETE BUTTON IN COMPLETED (DONE) COLUMN */}
+                            {task.status === 'DONE' && (
+                              <button
+                                onClick={() => handleDeleteTask(task.id)}
+                                className="neo-btn"
+                                style={{
+                                  backgroundColor: '#FF66C4',
+                                  color: '#000000',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  fontSize: '14px',
+                                  fontWeight: 'bold',
+                                  marginTop: '4px',
+                                  boxShadow: '3px 3px 0 #000000',
+                                  border: '2px solid #000000',
+                                }}
+                              >
+                                {t.deleteTaskBtn}
+                              </button>
+                            )}
                           </div>
                         );
                       })
@@ -1113,7 +1262,7 @@ export default function KanbanPage() {
         )}
       </main>
 
-      {/* Retro-Brutalist Create / Edit Modal Dialog */}
+      {/* Modal Dialog for Create/Edit */}
       {isModalOpen && (
         <div
           style={{
@@ -1135,8 +1284,8 @@ export default function KanbanPage() {
               boxShadow: '10px 10px 0 #000000',
               borderRadius: '20px',
               width: '100%',
-              maxWidth: '520px',
-              padding: '28px',
+              maxWidth: '500px',
+              padding: '26px',
             }}
           >
             {/* Modal Title Bar */}
@@ -1145,9 +1294,9 @@ export default function KanbanPage() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                paddingBottom: '16px',
+                paddingBottom: '14px',
                 borderBottom: '3px solid #000000',
-                marginBottom: '20px',
+                marginBottom: '18px',
               }}
             >
               <h2
@@ -1157,7 +1306,7 @@ export default function KanbanPage() {
                   margin: 0,
                 }}
               >
-                {editingTask ? 'ویرایش تسک' : 'ایجاد تسک جدید'}
+                {editingTask ? t.editTaskModalTitle : t.createTaskModalTitle}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -1192,6 +1341,7 @@ export default function KanbanPage() {
               onSubmit={handleSubmitForm}
               style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
             >
+              {/* 1. Title */}
               <div>
                 <label
                   style={{
@@ -1201,12 +1351,12 @@ export default function KanbanPage() {
                     marginBottom: '6px',
                   }}
                 >
-                  عنوان تسک *
+                  {t.titleLabel}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="مثلاً: طراحی بنتو گرید یا جلسه با تیم"
+                  placeholder={t.titlePlaceholder}
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="neo-input"
@@ -1214,6 +1364,7 @@ export default function KanbanPage() {
                 />
               </div>
 
+              {/* 2. Description (Optional) */}
               <div>
                 <label
                   style={{
@@ -1223,11 +1374,11 @@ export default function KanbanPage() {
                     marginBottom: '6px',
                   }}
                 >
-                  توضیحات (اختیاری)
+                  {t.descLabel}
                 </label>
                 <textarea
-                  rows={3}
-                  placeholder="جزئیات و نکات مربوط به تسک..."
+                  rows={2}
+                  placeholder={t.descPlaceholder}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="neo-input"
@@ -1235,58 +1386,88 @@ export default function KanbanPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '15px',
-                      fontWeight: 'bold',
-                      marginBottom: '6px',
-                    }}
-                  >
-                    ستون / وضعیت
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({ ...formData, status: e.target.value as TaskStatus })
-                    }
-                    className="neo-input"
-                    style={{ width: '100%', cursor: 'pointer' }}
-                  >
-                    <option value="TODO">برای انجام (TODO)</option>
-                    <option value="IN_PROGRESS">در حال انجام (IN_PROGRESS)</option>
-                    <option value="DONE">انجام شده (DONE)</option>
-                  </select>
-                </div>
+              {/* 3. Priority Selector (Badge with Cross or 3 buttons) */}
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '15px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                  }}
+                >
+                  {t.priorityLabel}
+                </label>
 
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '15px',
-                      fontWeight: 'bold',
-                      marginBottom: '6px',
-                    }}
-                  >
-                    اولویت
-                  </label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({ ...formData, priority: e.target.value as TaskPriority })
-                    }
-                    className="neo-input"
-                    style={{ width: '100%', cursor: 'pointer' }}
-                  >
-                    <option value="LOW">کم (Low)</option>
-                    <option value="MEDIUM">متوسط (Medium)</option>
-                    <option value="HIGH">فوری / بالا (High)</option>
-                  </select>
-                </div>
+                {formData.priority ? (
+                  /* Selected Priority Badge with ✕ remove button */
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      style={{
+                        backgroundColor: PRIORITY_THEME[formData.priority].bg,
+                        border: '2.5px solid #000000',
+                        boxShadow: '3px 3px 0 #000000',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontWeight: 'bold',
+                        fontSize: '15px',
+                      }}
+                    >
+                      <span>✦ {t.priorities[formData.priority]}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, priority: null })}
+                        title="Remove / Change"
+                        style={{
+                          background: '#000000',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '13px', color: '#666666' }}>
+                      (جهت تغییر، روی ✕ کلیک کنید)
+                    </span>
+                  </div>
+                ) : (
+                  /* 3 Selectable Buttons */
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {(['LOW', 'MEDIUM', 'HIGH'] as TaskPriority[]).map((p) => {
+                      const theme = PRIORITY_THEME[p];
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, priority: p })}
+                          className="neo-btn"
+                          style={{
+                            backgroundColor: theme.bg,
+                            padding: '6px 14px',
+                            fontSize: '14px',
+                          }}
+                        >
+                          {t.priorities[p]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
+              {/* 4. Due Date (Simplified with standard date picker + quick helpers) */}
               <div>
                 <label
                   style={{
@@ -1296,15 +1477,76 @@ export default function KanbanPage() {
                     marginBottom: '6px',
                   }}
                 >
-                  مهلت انجام (Due Date)
+                  {t.dueDateLabel}
                 </label>
-                <input
-                  type="datetime-local"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  className="neo-input"
-                  style={{ width: '100%' }}
-                />
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="neo-input"
+                    style={{ flex: 1, cursor: 'pointer' }}
+                  />
+                  {formData.due_date && (
+                    <button
+                      type="button"
+                      onClick={() => setQuickDate(null)}
+                      title="Clear"
+                      className="neo-btn"
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        padding: '8px 12px',
+                        boxShadow: '2px 2px 0 #000000',
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Date Chips */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setQuickDate(0)}
+                    className="neo-btn"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      padding: '3px 10px',
+                      fontSize: '12px',
+                      boxShadow: '2px 2px 0 #000000',
+                    }}
+                  >
+                    📅 {t.quickDates.today}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickDate(1)}
+                    className="neo-btn"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      padding: '3px 10px',
+                      fontSize: '12px',
+                      boxShadow: '2px 2px 0 #000000',
+                    }}
+                  >
+                    🚀 {t.quickDates.tomorrow}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickDate(7)}
+                    className="neo-btn"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      padding: '3px 10px',
+                      fontSize: '12px',
+                      boxShadow: '2px 2px 0 #000000',
+                    }}
+                  >
+                    🗓️ {t.quickDates.nextWeek}
+                  </button>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -1313,7 +1555,7 @@ export default function KanbanPage() {
                   display: 'flex',
                   justifyContent: 'flex-end',
                   gap: '12px',
-                  marginTop: '12px',
+                  marginTop: '10px',
                 }}
               >
                 <button
@@ -1325,7 +1567,7 @@ export default function KanbanPage() {
                     padding: '8px 20px',
                   }}
                 >
-                  انصراف
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
@@ -1339,10 +1581,10 @@ export default function KanbanPage() {
                   }}
                 >
                   {submitting
-                    ? 'در حال ذخیره...'
+                    ? t.saving
                     : editingTask
-                    ? 'ذخیره تغییرات'
-                    : 'ایجاد تسک'}
+                    ? t.save
+                    : t.create}
                 </button>
               </div>
             </form>
