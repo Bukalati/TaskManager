@@ -203,6 +203,22 @@ export default function ComicDatePicker({
     };
   }, [isOpen]);
 
+  // Determine whether to open upward or downward based on viewport position
+  const [openUpward, setOpenUpward] = useState(true);
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If space below is less than 380px, open upward to stay completely on-screen
+      if (spaceBelow < 380) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen]);
+
   // Navigate months
   const handlePrevMonth = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -360,17 +376,24 @@ export default function ComicDatePicker({
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
-            top: 'calc(100% + 8px)',
+            ...(openUpward
+              ? { bottom: 'calc(100% + 8px)', top: 'auto' }
+              : { top: 'calc(100% + 8px)', bottom: 'auto' }),
             [isRTL ? 'right' : 'left']: 0,
             zIndex: 150,
             width: '100%',
             maxWidth: '340px',
+            maxHeight: 'min(420px, 80vh)',
+            overflowY: 'auto',
             backgroundColor: isDark ? '#161e2e' : '#FFFFFF',
             border: isDark ? '2.5px solid #38bdf8' : '3px solid #000000',
             boxShadow: isDark ? '6px 6px 0 #38bdf8' : '6px 6px 0 #000000',
             borderRadius: '16px',
-            padding: '16px',
+            padding: '14px',
             userSelect: 'none',
+            transformOrigin: openUpward
+              ? (isRTL ? 'bottom right' : 'bottom left')
+              : (isRTL ? 'top right' : 'top left'),
             animation: 'fadeInScale 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
@@ -482,12 +505,12 @@ export default function ComicDatePicker({
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, 1fr)',
-              gap: '5px',
+              gap: '4px',
             }}
           >
             {/* Empty slots before first day */}
             {Array.from({ length: startingDayOffset }).map((_, i) => (
-              <div key={`empty-${i}`} style={{ height: '36px' }} />
+              <div key={`empty-${i}`} style={{ height: '33px' }} />
             ))}
 
             {/* Days in Month */}
@@ -535,13 +558,13 @@ export default function ComicDatePicker({
                   onClick={() => !isPast && selectDay(day)}
                   className={!isPast ? 'neo-btn' : ''}
                   style={{
-                    height: '36px',
+                    height: '33px',
                     borderRadius: '8px',
                     backgroundColor: bg,
                     color: textCol,
                     border,
                     boxShadow: shadow,
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: isSelected || isToday ? 900 : 700,
                     display: 'flex',
                     alignItems: 'center',
