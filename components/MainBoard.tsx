@@ -28,8 +28,15 @@ import {
   Zap,
   CalendarDays,
 } from "lucide-react";
-import type { Task, TaskStatus, TaskPriority } from "../types/task";
+import type { Task, TaskStatus, TaskPriority, UserSummary } from "../types/task";
 import ComicDatePicker from "./ComicDatePicker";
+import {
+  AuthModal,
+  ProfileModal,
+  ChangePasswordModal,
+  AdminUsersModal,
+  UserHeaderMenu,
+} from "./AuthModals";
 
 // Multilingual text dictionary
 const DICTIONARY = {
@@ -103,6 +110,14 @@ const DICTIONARY = {
       dark: "حالت تاریک",
       light: "حالت روشن",
     },
+    allTasksTab: "همه تسک‌ها",
+    myTasksTab: "تسک‌های من",
+    createdTasksTab: "ایجاد شده توسط من",
+    assigneeLabel: "محول‌شده به",
+    selectAssignee: "انتخاب فرد مسئول...",
+    unassigned: "بدون مسئول (عمومی)",
+    assignedToMeHint: "این تسک به شما محول شده است",
+    createdByHint: "سازنده:",
   },
   en: {
     appTitle: "Task Manager",
@@ -174,6 +189,14 @@ const DICTIONARY = {
       dark: "Dark Mode",
       light: "Light Mode",
     },
+    allTasksTab: "All Tasks",
+    myTasksTab: "Assigned to Me",
+    createdTasksTab: "Created by Me",
+    assigneeLabel: "Assign To",
+    selectAssignee: "Select Assignee...",
+    unassigned: "Unassigned (Public)",
+    assignedToMeHint: "Assigned to you",
+    createdByHint: "Created by:",
   },
 };
 
@@ -442,6 +465,15 @@ export default function TaskBoard() {
     "created_desc" | "created_asc" | "due_date"
   >("created_desc");
 
+  // Auth & Profile state
+  const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [usersList, setUsersList] = useState<UserSummary[]>([]);
+  const [taskTabFilter, setTaskTabFilter] = useState<'ALL' | 'ASSIGNED_TO_ME' | 'CREATED_BY_ME'>('ALL');
+
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -455,12 +487,14 @@ export default function TaskBoard() {
     status: TaskStatus;
     priority: TaskPriority | null;
     due_date: string;
+    assigned_to: string | null;
   }>({
     title: "",
     description: "",
     status: "TODO",
     priority: null,
     due_date: "",
+    assigned_to: null,
   });
 
   // Drag & Drop State
@@ -496,9 +530,45 @@ export default function TaskBoard() {
     }
   };
 
+  // Check session and fetch users list on mount
   useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            setCurrentUser(json.data);
+          }
+        }
+      } catch {}
+    };
+
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/auth/users');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            setUsersList(json.data);
+          }
+        }
+      } catch {}
+    };
+
+    checkSession();
+    fetchUsers();
     fetchTasks();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    setCurrentUser(null);
+    setTaskTabFilter('ALL');
+    showToast(lang === 'fa' ? 'از حساب کاربری خود خارج شدید' : 'Logged out successfully');
+  };
 
   // Focus search input when opened
   useEffect(() => {
@@ -518,7 +588,16 @@ export default function TaskBoard() {
       const matchesPriority =
         priorityFilter === "ALL" || task.priority === priorityFilter;
 
-      return matchesSearch && matchesPriority;
+      let matchesTab = true;
+      if (currentUser) {
+        if (taskTabFilter === "ASSIGNED_TO_ME") {
+          matchesTab = task.assigned_to === currentUser.id;
+        } else if (taskTabFilter === "CREATED_BY_ME") {
+          matchesTab = task.created_by === currentUser.id;
+        }
+      }
+
+      return matchesSearch && matchesPriority && matchesTab;
     });
 
     return list.sort((a, b) => {
@@ -559,6 +638,7 @@ export default function TaskBoard() {
       status: defaultStatus,
       priority: null, // No default selection!
       due_date: "",
+      assigned_to: currentUser?.id || null,
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -572,6 +652,7 @@ export default function TaskBoard() {
       status: task.status,
       priority: task.priority,
       due_date: task.due_date ? task.due_date.substring(0, 10) : "",
+      assigned_to: task.assigned_to || null,
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -607,6 +688,7 @@ export default function TaskBoard() {
         due_date: formData.due_date
           ? new Date(formData.due_date).toISOString()
           : null,
+        assigned_to: formData.assigned_to || null,
       };
 
       if (editingTask) {
@@ -807,8 +889,21 @@ export default function TaskBoard() {
             </div>
           </div>
 
-          {/* Action Toolbar: Theme toggle, Language toggle, New Task */}
+          {/* Action Toolbar: Theme toggle, Language toggle, User Menu, New Task */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* User Profile & Auth Menu */}
+            <UserHeaderMenu
+              user={currentUser}
+              onOpenLogin={() => setIsAuthModalOpen(true)}
+              onOpenProfile={() => setIsProfileModalOpen(true)}
+              onOpenAdminModal={() => setIsAdminModalOpen(true)}
+              onLogout={handleLogout}
+              lang={lang}
+              colors={colors}
+              isDark={isDark}
+              isRTL={isRTL}
+            />
+
             {/* Smooth Pill Theme Toggle Switch (Height 42px, NO text label, LTR direction) */}
             <button
               type="button"
@@ -1129,6 +1224,194 @@ export default function TaskBoard() {
               </div>
             </div>
           </section>
+        )}
+
+        {/* User Scope Tabs (All / Assigned to Me / Created by Me) */}
+        {!loading && tasks.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "16px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setTaskTabFilter("ALL")}
+              className="neo-btn"
+              style={{
+                padding: "8px 16px",
+                borderRadius: "10px",
+                fontSize: "14px",
+                fontWeight: 900,
+                backgroundColor:
+                  taskTabFilter === "ALL"
+                    ? "#FFE600"
+                    : isDark
+                      ? "#1e293b"
+                      : "#FFFFFF",
+                color: taskTabFilter === "ALL" ? "#000000" : colors.textMain,
+                border:
+                  taskTabFilter === "ALL"
+                    ? "2.5px solid #000000"
+                    : colors.borderCol,
+                boxShadow:
+                  taskTabFilter === "ALL"
+                    ? "3px 3px 0 #000000"
+                    : colors.shadowBtn,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span>🌐</span>
+              <span>{t.allTasksTab}</span>
+              <span
+                style={{
+                  backgroundColor:
+                    taskTabFilter === "ALL"
+                      ? "#000000"
+                      : isDark
+                        ? "#334155"
+                        : "#E2E8F0",
+                  color: taskTabFilter === "ALL" ? "#FFFFFF" : colors.textMain,
+                  borderRadius: "999px",
+                  padding: "1px 7px",
+                  fontSize: "12px",
+                }}
+              >
+                {tasks.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!currentUser) {
+                  setIsAuthModalOpen(true);
+                  return;
+                }
+                setTaskTabFilter("ASSIGNED_TO_ME");
+              }}
+              className="neo-btn"
+              style={{
+                padding: "8px 16px",
+                borderRadius: "10px",
+                fontSize: "14px",
+                fontWeight: 900,
+                backgroundColor:
+                  taskTabFilter === "ASSIGNED_TO_ME"
+                    ? "#38BDF8"
+                    : isDark
+                      ? "#1e293b"
+                      : "#FFFFFF",
+                color:
+                  taskTabFilter === "ASSIGNED_TO_ME"
+                    ? "#000000"
+                    : colors.textMain,
+                border:
+                  taskTabFilter === "ASSIGNED_TO_ME"
+                    ? "2.5px solid #000000"
+                    : colors.borderCol,
+                boxShadow:
+                  taskTabFilter === "ASSIGNED_TO_ME"
+                    ? "3px 3px 0 #000000"
+                    : colors.shadowBtn,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span>🎯</span>
+              <span>{t.myTasksTab}</span>
+              {currentUser && (
+                <span
+                  style={{
+                    backgroundColor:
+                      taskTabFilter === "ASSIGNED_TO_ME"
+                        ? "#000000"
+                        : isDark
+                          ? "#334155"
+                          : "#E2E8F0",
+                    color:
+                      taskTabFilter === "ASSIGNED_TO_ME"
+                        ? "#FFFFFF"
+                        : colors.textMain,
+                    borderRadius: "999px",
+                    padding: "1px 7px",
+                    fontSize: "12px",
+                  }}
+                >
+                  {tasks.filter((tk) => tk.assigned_to === currentUser.id).length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!currentUser) {
+                  setIsAuthModalOpen(true);
+                  return;
+                }
+                setTaskTabFilter("CREATED_BY_ME");
+              }}
+              className="neo-btn"
+              style={{
+                padding: "8px 16px",
+                borderRadius: "10px",
+                fontSize: "14px",
+                fontWeight: 900,
+                backgroundColor:
+                  taskTabFilter === "CREATED_BY_ME"
+                    ? "#FF66C4"
+                    : isDark
+                      ? "#1e293b"
+                      : "#FFFFFF",
+                color:
+                  taskTabFilter === "CREATED_BY_ME"
+                    ? "#000000"
+                    : colors.textMain,
+                border:
+                  taskTabFilter === "CREATED_BY_ME"
+                    ? "2.5px solid #000000"
+                    : colors.borderCol,
+                boxShadow:
+                  taskTabFilter === "CREATED_BY_ME"
+                    ? "3px 3px 0 #000000"
+                    : colors.shadowBtn,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span>✍️</span>
+              <span>{t.createdTasksTab}</span>
+              {currentUser && (
+                <span
+                  style={{
+                    backgroundColor:
+                      taskTabFilter === "CREATED_BY_ME"
+                        ? "#000000"
+                        : isDark
+                          ? "#334155"
+                          : "#E2E8F0",
+                    color:
+                      taskTabFilter === "CREATED_BY_ME"
+                        ? "#FFFFFF"
+                        : colors.textMain,
+                    borderRadius: "999px",
+                    padding: "1px 7px",
+                    fontSize: "12px",
+                  }}
+                >
+                  {tasks.filter((tk) => tk.created_by === currentUser.id).length}
+                </span>
+              )}
+            </button>
+          </div>
         )}
 
         {/* 2. Top-of-Boards Filter, Search, and Sort Toolbar */}
@@ -1929,6 +2212,101 @@ export default function TaskBoard() {
                                   </span>
                                 </div>
                               )}
+
+                              {/* Assignee / Responsible User Badge */}
+                              {(() => {
+                                const assigneeUser =
+                                  task.assignee ||
+                                  (task.assigned_to
+                                    ? usersList.find(
+                                        (u) => u.id === task.assigned_to,
+                                      )
+                                    : null);
+                                if (!assigneeUser) return null;
+                                const isAssignedToCurrent =
+                                  currentUser?.id === assigneeUser.id;
+
+                                return (
+                                  <div
+                                    title={
+                                      isAssignedToCurrent
+                                        ? t.assignedToMeHint
+                                        : `${t.assigneeLabel}: ${assigneeUser.full_name || assigneeUser.name || ""}`
+                                    }
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "5px",
+                                      backgroundColor: isAssignedToCurrent
+                                        ? "#38BDF8"
+                                        : isDark
+                                          ? "#0f172a"
+                                          : "#F1F5F9",
+                                      color: isAssignedToCurrent
+                                        ? "#000000"
+                                        : colors.textMain,
+                                      border: "1.5px solid #000000",
+                                      boxShadow: "1.5px 1.5px 0 #000000",
+                                      borderRadius: "999px",
+                                      padding: "2px 8px 2px 3px",
+                                      fontSize: "11px",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: "18px",
+                                        height: "18px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#FFE600",
+                                        border: "1px solid #000000",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        overflow: "hidden",
+                                        fontSize: "10px",
+                                      }}
+                                    >
+                                      {assigneeUser.avatar_url ? (
+                                        <img
+                                          src={assigneeUser.avatar_url}
+                                          alt=""
+                                          style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover",
+                                          }}
+                                        />
+                                      ) : (
+                                        (assigneeUser.full_name || assigneeUser.name || "U").charAt(0)
+                                      )}
+                                    </div>
+                                    <span
+                                      style={{
+                                        maxWidth: "85px",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      {assigneeUser.full_name || assigneeUser.name || ""}
+                                    </span>
+                                    {isAssignedToCurrent && (
+                                      <span
+                                        style={{
+                                          backgroundColor: "#000000",
+                                          color: "#FFFFFF",
+                                          borderRadius: "4px",
+                                          padding: "0 3px",
+                                          fontSize: "9px",
+                                        }}
+                                      >
+                                        {lang === "fa" ? "شما" : "You"}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* Card Bottom Quick Move buttons */}
@@ -2373,6 +2751,137 @@ export default function TaskBoard() {
                   >
                     {t.quickDates.nextWeek}
                   </button>
+                </div>
+              </div>
+
+              {/* 5. Assignee Selection */}
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "15px",
+                    fontWeight: "bold",
+                    color: colors.textMain,
+                    marginBottom: "6px",
+                  }}
+                >
+                  {t.assigneeLabel}
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, assigned_to: null })
+                    }
+                    className="neo-btn"
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: "bold",
+                      backgroundColor:
+                        formData.assigned_to === null
+                          ? "#FFE600"
+                          : isDark
+                            ? "#1e293b"
+                            : "#FFFFFF",
+                      color:
+                        formData.assigned_to === null
+                          ? "#000000"
+                          : colors.textMain,
+                      border:
+                        formData.assigned_to === null
+                          ? "2px solid #000000"
+                          : colors.borderCol,
+                      boxShadow:
+                        formData.assigned_to === null
+                          ? "2px 2px 0 #000000"
+                          : colors.shadowBtn,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>👥</span>
+                    <span>{t.unassigned}</span>
+                  </button>
+
+                  {usersList.map((u) => {
+                    const isSelected = formData.assigned_to === u.id;
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() =>
+                          setFormData({ ...formData, assigned_to: u.id })
+                        }
+                        className="neo-btn"
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          fontWeight: "bold",
+                          backgroundColor: isSelected
+                            ? "#38BDF8"
+                            : isDark
+                              ? "#1e293b"
+                              : "#FFFFFF",
+                          color: isSelected ? "#000000" : colors.textMain,
+                          border: isSelected
+                            ? "2px solid #000000"
+                            : colors.borderCol,
+                          boxShadow: isSelected
+                            ? "2px 2px 0 #000000"
+                            : colors.shadowBtn,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            backgroundColor: "#FFE600",
+                            border: "1px solid #000000",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "11px",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {u.avatar_url ? (
+                            <img
+                              src={u.avatar_url}
+                              alt=""
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            (u.full_name || u.name || "U").charAt(0)
+                          )}
+                        </div>
+                        <span>{u.full_name || u.name || u.email}</span>
+                        {currentUser?.id === u.id && (
+                          <span style={{ fontSize: "11px", opacity: 0.8 }}>
+                            ({lang === "fa" ? "من" : "Me"})
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2931,6 +3440,63 @@ export default function TaskBoard() {
           </div>
         </div>
       )}
+
+      {/* AUTH & USER MANAGEMENT MODALS */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          fetchTasks();
+          fetch("/api/auth/users")
+            .then((r) => r.json())
+            .then((j) => {
+              if (j.data) setUsersList(j.data);
+            })
+            .catch(() => {});
+        }}
+        lang={lang}
+        colors={colors}
+        isDark={isDark}
+        isRTL={isRTL}
+      />
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={currentUser}
+        onUpdateUser={(updated) => {
+          setCurrentUser(updated);
+          setUsersList((prev) =>
+            prev.map((u) => (u.id === updated.id ? updated : u)),
+          );
+        }}
+        onOpenChangePassword={() => setIsPasswordModalOpen(true)}
+        lang={lang}
+        colors={colors}
+        isDark={isDark}
+        isRTL={isRTL}
+      />
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        lang={lang}
+        colors={colors}
+        isDark={isDark}
+        isRTL={isRTL}
+      />
+
+      <AdminUsersModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        currentUserId={currentUser?.id || ""}
+        lang={lang}
+        colors={colors}
+        isDark={isDark}
+        isRTL={isRTL}
+      />
     </div>
   );
 }
+

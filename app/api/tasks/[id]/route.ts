@@ -79,7 +79,7 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await client
+    let { data, error } = await client
       .from('tasks')
       .update(updatePayload)
       .eq('id', id)
@@ -87,7 +87,20 @@ export async function PATCH(
       .single();
 
     if (error) {
-      throw error;
+      if (error.message?.includes('column') && ('assigned_to' in updatePayload || 'created_by' in updatePayload)) {
+        delete updatePayload.assigned_to;
+        delete updatePayload.created_by;
+        const retry = await client
+          .from('tasks')
+          .update(updatePayload)
+          .eq('id', id)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      } else {
+        throw error;
+      }
     }
 
     return successResponse<Task>(

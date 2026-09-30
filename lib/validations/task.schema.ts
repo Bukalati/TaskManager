@@ -27,6 +27,8 @@ export const createTaskSchema = z.object({
     .datetime({ message: 'due_date must be a valid ISO 8601 date string (e.g. 2026-10-15T18:00:00Z)' })
     .nullable()
     .optional(),
+  assigned_to: z.string().uuid({ message: 'assigned_to must be a valid UUID' }).nullable().optional(),
+  created_by: z.string().uuid({ message: 'created_by must be a valid UUID' }).nullable().optional(),
 });
 
 export const updateTaskSchema = z
@@ -50,6 +52,8 @@ export const updateTaskSchema = z
       .datetime({ message: 'due_date must be a valid ISO 8601 date string' })
       .nullable()
       .optional(),
+    assigned_to: z.string().uuid({ message: 'assigned_to must be a valid UUID' }).nullable().optional(),
+    created_by: z.string().uuid({ message: 'created_by must be a valid UUID' }).nullable().optional(),
   })
   .refine(
     (data) => Object.keys(data).length > 0,
@@ -61,15 +65,13 @@ export const taskIdParamSchema = z.object({
 });
 
 export const taskQuerySchema = z.object({
-  page: z.coerce.number().int().min(1, 'Page must be at least 1').default(1),
-  limit: z.coerce.number().int().min(1, 'Limit must be at least 1').max(100, 'Limit cannot exceed 100').default(10),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(500).default(10),
   status: TaskStatusEnum.optional(),
   priority: TaskPriorityEnum.optional(),
-  search: z.string().trim().max(100).optional(),
-  sortBy: z.enum(['created_at', 'due_date', 'priority', 'status', 'title']).default('created_at'),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['created_at', 'due_date', 'priority', 'title']).default('created_at'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  assigned_to: z.string().uuid().optional(),
+  created_by: z.string().uuid().optional(),
 });
-
-export type CreateTaskInput = z.infer<typeof createTaskSchema>;
-export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
-export type TaskQueryInput = z.infer<typeof taskQuerySchema>;
