@@ -29,6 +29,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority } from "../types/task";
+import ComicDatePicker from "./ComicDatePicker";
 
 // Multilingual text dictionary
 const DICTIONARY = {
@@ -2311,47 +2312,18 @@ export default function TaskBoard() {
                   {t.dueDateLabel}
                 </label>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    alignItems: "center",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <input
-                    type="date"
-                    min={todayDateStr}
+                <div style={{ marginBottom: "10px" }}>
+                  <ComicDatePicker
                     value={formData.due_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, due_date: e.target.value })
+                    onChange={(dateStr) =>
+                      setFormData({ ...formData, due_date: dateStr })
                     }
-                    className="neo-input"
-                    style={{
-                      flex: 1,
-                      cursor: "pointer",
-                      backgroundColor: isDark ? "#1e293b" : "#FFFFFF",
-                      color: colors.textMain,
-                      border: colors.borderCol,
-                    }}
+                    minDate={todayDateStr}
+                    lang={lang}
+                    colors={colors}
+                    isDark={isDark}
+                    isRTL={isRTL}
                   />
-                  {formData.due_date && (
-                    <button
-                      type="button"
-                      onClick={() => setQuickDate(null)}
-                      title="Clear"
-                      className="neo-btn"
-                      style={{
-                        backgroundColor: "#FF66C4",
-                        color: "#000000",
-                        border: "2px solid #000000",
-                        padding: "8px 12px",
-                        boxShadow: "2px 2px 0 #000000",
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
                 </div>
 
                 {/* Quick Date Chips */}
