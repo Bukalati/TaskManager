@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Task Management API',
-  description: 'RESTful API for Task Management built with Next.js, Supabase, and Zod',
+  title: 'TaskFlow - Kanban Board',
+  description: 'Manage tasks efficiently with Kanban board, Next.js, and Supabase',
 };
 
 export default function RootLayout({
@@ -11,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#0f172a', color: '#f8fafc' }}>
+    <html lang="fa" dir="rtl">
+      <body>
         {children}
       </body>
     </html>
