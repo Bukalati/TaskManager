@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -18,6 +18,9 @@ import {
   CheckSquare,
   Clock,
   Languages,
+  Sun,
+  Moon,
+  ArrowUpDown,
 } from 'lucide-react';
 import type { Task, TaskStatus, TaskPriority } from '../types/task';
 
@@ -26,11 +29,17 @@ const DICTIONARY = {
   fa: {
     appTitle: 'مدیریت تسک‌ها',
     boardVersion: '✦ BOARD v2.0',
-    searchPlaceholder: '🔍 جستجو در تسک‌ها...',
+    searchPlaceholder: 'جستجو در تسک‌ها...',
+    searchBtn: 'جستجو',
     allPriorities: 'همه اولویت‌ها',
     highPriority: 'فقط فوری (High)',
     medPriority: 'فقط متوسط (Medium)',
     lowPriority: 'فقط کم (Low)',
+    sortByDateDesc: 'جدیدترین',
+    sortByDateAsc: 'قدیمی‌ترین',
+    sortByDueDate: 'نزدیک‌ترین مهلت',
+    sortLabel: 'مرتب‌سازی:',
+    filterLabel: 'اولویت:',
     newTask: 'تسک جدید',
     refresh: 'بارگذاری مجدد',
     totalTasks: '[ ۰۱ ] کل تسک‌ها',
@@ -49,13 +58,14 @@ const DICTIONARY = {
     descLabel: 'توضیحات (اختیاری)',
     descPlaceholder: 'جزئیات و نکات مربوط به تسک...',
     priorityLabel: 'اولویت',
-    selectPriority: 'انتخاب اولویت:',
+    selectPriorityHint: 'جهت تغییر، روی ✕ کلیک کنید',
     dueDateLabel: 'مهلت انجام (اختیاری)',
     cancel: 'انصراف',
     save: 'ذخیره تغییرات',
     create: 'ایجاد تسک',
     saving: 'در حال ذخیره...',
     titleRequired: 'عنوان تسک الزامی است',
+    datePastError: 'مهلت انجام نمی‌تواند قبل از امروز باشد',
     back: 'به عقب',
     startTask: 'شروع کار',
     completeTask: 'تکمیل شد',
@@ -77,21 +87,31 @@ const DICTIONARY = {
       MEDIUM: 'متوسط (Medium)',
       HIGH: 'فوری (High)',
     },
+    theme: {
+      dark: 'حالت تاریک',
+      light: 'حالت روشن',
+    },
   },
   en: {
     appTitle: 'Task Manager',
     boardVersion: '✦ BOARD v2.0',
-    searchPlaceholder: '🔍 Search tasks...',
+    searchPlaceholder: 'Search tasks...',
+    searchBtn: 'Search',
     allPriorities: 'All Priorities',
-    highPriority: 'High Priority',
-    medPriority: 'Medium Priority',
-    lowPriority: 'Low Priority',
+    highPriority: 'High Only',
+    medPriority: 'Medium Only',
+    lowPriority: 'Low Only',
+    sortByDateDesc: 'Newest First',
+    sortByDateAsc: 'Oldest First',
+    sortByDueDate: 'Closest Due Date',
+    sortLabel: 'Sort by:',
+    filterLabel: 'Priority:',
     newTask: 'New Task',
     refresh: 'Refresh',
     totalTasks: '[ 01 ] Total Tasks',
     inProgressStats: '[ 02 ] In Progress',
     doneStats: '[ 03 ] Completed',
-    todoStats: '[ 04 ] Pending (To Do)',
+    todoStats: '[ 04 ] Pending',
     loading: '⚡ Loading data from server...',
     emptyTitle: 'No tasks added yet!',
     emptyDesc: 'Your workspace is completely empty. Create your first task to get things moving!',
@@ -104,13 +124,14 @@ const DICTIONARY = {
     descLabel: 'Description (Optional)',
     descPlaceholder: 'Notes and details about the task...',
     priorityLabel: 'Priority',
-    selectPriority: 'Select Priority:',
+    selectPriorityHint: 'Click ✕ to change',
     dueDateLabel: 'Due Date (Optional)',
     cancel: 'Cancel',
     save: 'Save Changes',
     create: 'Create Task',
     saving: 'Saving...',
     titleRequired: 'Task title is required',
+    datePastError: 'Due date cannot be in the past',
     back: 'Back',
     startTask: 'Start Work',
     completeTask: 'Complete',
@@ -132,28 +153,56 @@ const DICTIONARY = {
       MEDIUM: 'Medium',
       HIGH: 'High',
     },
+    theme: {
+      dark: 'Dark Mode',
+      light: 'Light Mode',
+    },
   },
 };
 
 const PRIORITY_THEME: Record<
   TaskPriority,
-  { bg: string; color: string; border: string }
+  { bg: string; color: string }
 > = {
-  LOW: { bg: '#E4D4F4', color: '#000000', border: '#000000' },
-  MEDIUM: { bg: '#FFE600', color: '#000000', border: '#000000' },
-  HIGH: { bg: '#FF66C4', color: '#000000', border: '#000000' },
+  LOW: { bg: '#E4D4F4', color: '#000000' },
+  MEDIUM: { bg: '#FFE600', color: '#000000' },
+  HIGH: { bg: '#FF66C4', color: '#000000' },
 };
 
 export default function KanbanBoard() {
   const [lang, setLang] = useState<'fa' | 'en'>('fa');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
   const t = DICTIONARY[lang];
   const isRTL = lang === 'fa';
+  const isDark = theme === 'dark';
+
+  // Theme color tokens
+  const colors = {
+    bgPage: isDark ? '#0b0f19' : '#F7F4EB',
+    bgCard: isDark ? '#161e2e' : '#FFFFFF',
+    bgHeader: isDark ? '#111827' : '#FFFFFF',
+    border: isDark ? '#f8fafc' : '#000000',
+    shadow: isDark ? '#38bdf8' : '#000000',
+    textMain: isDark ? '#f8fafc' : '#000000',
+    textMuted: isDark ? '#94a3b8' : '#555555',
+    subCard: isDark ? '#1e293b' : '#F3F4F6',
+    borderCol: isDark ? '2.5px solid #f8fafc' : '3px solid #000000',
+    shadowCol: isDark ? '5px 5px 0 #38bdf8' : '5px 5px 0 #000000',
+    shadowBtn: isDark ? '3px 3px 0 #38bdf8' : '3px 3px 0 #000000',
+  };
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter & Search & Sort states (Moved above boards)
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'due_date'>('created_desc');
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,7 +210,7 @@ export default function KanbanBoard() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Form Fields
+  // Form Fields (Priority defaults to null on new task)
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -172,13 +221,18 @@ export default function KanbanBoard() {
     title: '',
     description: '',
     status: 'TODO',
-    priority: 'MEDIUM',
+    priority: null,
     due_date: '',
   });
 
   // Drag & Drop State
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+
+  // Today's date string YYYY-MM-DD
+  const todayDateStr = useMemo(() => {
+    return new Date().toISOString().split('T')[0] ?? '';
+  }, []);
 
   // Fetch tasks
   const fetchTasks = async () => {
@@ -206,9 +260,16 @@ export default function KanbanBoard() {
     fetchTasks();
   }, []);
 
-  // Filter tasks
+  // Focus search input when opened
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  // Filter & Sort tasks
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    const list = tasks.filter((task) => {
       const matchesSearch =
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (task.description &&
@@ -219,7 +280,22 @@ export default function KanbanBoard() {
 
       return matchesSearch && matchesPriority;
     });
-  }, [tasks, searchQuery, priorityFilter]);
+
+    return list.sort((a, b) => {
+      if (sortBy === 'created_desc') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (sortBy === 'created_asc') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      if (sortBy === 'due_date') {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      }
+      return 0;
+    });
+  }, [tasks, searchQuery, priorityFilter, sortBy]);
 
   // Bento counts
   const stats = useMemo(() => {
@@ -230,13 +306,14 @@ export default function KanbanBoard() {
     return { total, todo, inProgress, done };
   }, [tasks]);
 
+  // Open modal with priority set to null by default
   const handleOpenCreateModal = (defaultStatus: TaskStatus = 'TODO') => {
     setEditingTask(null);
     setFormData({
       title: '',
       description: '',
       status: defaultStatus,
-      priority: 'MEDIUM',
+      priority: null, // No default selection!
       due_date: '',
     });
     setFormError(null);
@@ -263,6 +340,12 @@ export default function KanbanBoard() {
       return;
     }
 
+    // Validate that due_date is NOT before today
+    if (formData.due_date && formData.due_date < todayDateStr) {
+      setFormError(t.datePastError);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setFormError(null);
@@ -271,7 +354,7 @@ export default function KanbanBoard() {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         status: formData.status,
-        priority: formData.priority || 'MEDIUM',
+        priority: formData.priority || 'MEDIUM', // Seamless default if unpicked
         due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
       };
 
@@ -343,7 +426,7 @@ export default function KanbanBoard() {
     }
   };
 
-  // Quick date helper
+  // Quick date helper (Ensures minimum is today)
   const setQuickDate = (daysAhead: number | null) => {
     if (daysAhead === null) {
       setFormData((prev) => ({ ...prev, due_date: '' }));
@@ -382,14 +465,17 @@ export default function KanbanBoard() {
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
+        backgroundColor: colors.bgPage,
+        color: colors.textMain,
+        transition: 'background-color 0.2s ease, color 0.2s ease',
       }}
     >
-      {/* Header Banner */}
+      {/* 1. Header Banner - Cleaned from filters/search */}
       <header
         style={{
-          backgroundColor: '#FFFFFF',
-          borderBottom: '3px solid #000000',
-          boxShadow: '0 4px 0 #000000',
+          backgroundColor: colors.bgHeader,
+          borderBottom: colors.borderCol,
+          boxShadow: isDark ? '0 4px 0 #38bdf8' : '0 4px 0 #000000',
           padding: '16px 32px',
           position: 'sticky',
           top: 0,
@@ -442,10 +528,10 @@ export default function KanbanBoard() {
                   style={{
                     fontSize: '36px',
                     fontWeight: 900,
-                    color: '#000000',
+                    color: colors.textMain,
                     margin: 0,
                     lineHeight: '1.1',
-                    textShadow: '2px 2px 0px #FFE600',
+                    textShadow: isDark ? '2px 2px 0px #38bdf8' : '2px 2px 0px #FFE600',
                   }}
                 >
                   {t.appTitle}
@@ -469,36 +555,28 @@ export default function KanbanBoard() {
             </div>
           </div>
 
-          {/* Action Toolbar */}
+          {/* Action Toolbar: Theme toggle, Language toggle, Refresh, New Task */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* Search Input */}
-            <div>
-              <input
-                type="text"
-                placeholder={t.searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="neo-input"
-                style={{
-                  width: '210px',
-                  paddingLeft: '12px',
-                  paddingRight: '14px',
-                }}
-              />
-            </div>
-
-            {/* Priority Filter */}
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="neo-input"
-              style={{ cursor: 'pointer' }}
+            {/* Theme Toggle Button */}
+            <button
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              title={isDark ? t.theme.light : t.theme.dark}
+              className="neo-btn"
+              style={{
+                backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                color: isDark ? '#f8fafc' : '#000000',
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
+                padding: '8px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 'bold',
+              }}
             >
-              <option value="ALL">{t.allPriorities}</option>
-              <option value="HIGH">{t.highPriority}</option>
-              <option value="MEDIUM">{t.medPriority}</option>
-              <option value="LOW">{t.lowPriority}</option>
-            </select>
+              {isDark ? <Sun size={18} color="#FFE600" /> : <Moon size={18} color="#000000" />}
+              <span>{isDark ? '☀️ لایت' : '🌙 دارک'}</span>
+            </button>
 
             {/* Language Switcher Toggle */}
             <button
@@ -506,7 +584,10 @@ export default function KanbanBoard() {
               title={lang === 'fa' ? 'Switch to English' : 'تغییر به فارسی'}
               className="neo-btn"
               style={{
-                backgroundColor: '#E4D4F4',
+                backgroundColor: isDark ? '#2e1065' : '#E4D4F4',
+                color: isDark ? '#f8fafc' : '#000000',
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 padding: '8px 14px',
                 display: 'flex',
                 alignItems: 'center',
@@ -524,7 +605,10 @@ export default function KanbanBoard() {
               title={t.refresh}
               className="neo-btn"
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                color: colors.textMain,
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 padding: '8px 12px',
               }}
             >
@@ -537,6 +621,9 @@ export default function KanbanBoard() {
               className="neo-btn"
               style={{
                 backgroundColor: '#FFE600',
+                color: '#000000',
+                border: '3px solid #000000',
+                boxShadow: '4px 4px 0 #000000',
                 fontSize: '18px',
                 padding: '8px 22px',
               }}
@@ -563,8 +650,9 @@ export default function KanbanBoard() {
           <div
             style={{
               backgroundColor: '#FF66C4',
-              border: '3px solid #000000',
-              boxShadow: '4px 4px 0 #000000',
+              color: '#000000',
+              border: colors.borderCol,
+              boxShadow: colors.shadowBtn,
               borderRadius: '8px',
               padding: '12px 18px',
               marginBottom: '24px',
@@ -572,6 +660,7 @@ export default function KanbanBoard() {
               alignItems: 'center',
               gap: '12px',
               fontSize: '16px',
+              fontWeight: 'bold',
             }}
           >
             <AlertTriangle size={20} />
@@ -586,14 +675,14 @@ export default function KanbanBoard() {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               gap: '16px',
-              marginBottom: '32px',
+              marginBottom: '28px',
             }}
           >
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '3px solid #000000',
-                boxShadow: '4px 4px 0 #000000',
+                backgroundColor: colors.bgCard,
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 borderRadius: '12px',
                 padding: '16px 20px',
                 display: 'flex',
@@ -602,7 +691,7 @@ export default function KanbanBoard() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>{t.totalTasks}</span>
+                <span style={{ fontSize: '13px', color: colors.textMuted }}>{t.totalTasks}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.total}
                 </div>
@@ -613,6 +702,7 @@ export default function KanbanBoard() {
                   height: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#FFE600',
+                  color: '#000000',
                   border: '2px solid #000000',
                   display: 'flex',
                   alignItems: 'center',
@@ -625,9 +715,9 @@ export default function KanbanBoard() {
 
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '3px solid #000000',
-                boxShadow: '4px 4px 0 #000000',
+                backgroundColor: colors.bgCard,
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 borderRadius: '12px',
                 padding: '16px 20px',
                 display: 'flex',
@@ -636,7 +726,7 @@ export default function KanbanBoard() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>{t.inProgressStats}</span>
+                <span style={{ fontSize: '13px', color: colors.textMuted }}>{t.inProgressStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.inProgress}
                 </div>
@@ -647,6 +737,7 @@ export default function KanbanBoard() {
                   height: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#38BDF8',
+                  color: '#000000',
                   border: '2px solid #000000',
                   display: 'flex',
                   alignItems: 'center',
@@ -659,9 +750,9 @@ export default function KanbanBoard() {
 
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '3px solid #000000',
-                boxShadow: '4px 4px 0 #000000',
+                backgroundColor: colors.bgCard,
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 borderRadius: '12px',
                 padding: '16px 20px',
                 display: 'flex',
@@ -670,7 +761,7 @@ export default function KanbanBoard() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>{t.doneStats}</span>
+                <span style={{ fontSize: '13px', color: colors.textMuted }}>{t.doneStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.done}
                 </div>
@@ -681,6 +772,7 @@ export default function KanbanBoard() {
                   height: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#4EFA8A',
+                  color: '#000000',
                   border: '2px solid #000000',
                   display: 'flex',
                   alignItems: 'center',
@@ -693,9 +785,9 @@ export default function KanbanBoard() {
 
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '3px solid #000000',
-                boxShadow: '4px 4px 0 #000000',
+                backgroundColor: colors.bgCard,
+                border: colors.borderCol,
+                boxShadow: colors.shadowBtn,
                 borderRadius: '12px',
                 padding: '16px 20px',
                 display: 'flex',
@@ -704,7 +796,7 @@ export default function KanbanBoard() {
               }}
             >
               <div>
-                <span style={{ fontSize: '13px', color: '#555555' }}>{t.todoStats}</span>
+                <span style={{ fontSize: '13px', color: colors.textMuted }}>{t.todoStats}</span>
                 <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: '1.1' }}>
                   {stats.todo}
                 </div>
@@ -715,6 +807,7 @@ export default function KanbanBoard() {
                   height: '44px',
                   borderRadius: '8px',
                   backgroundColor: '#E4D4F4',
+                  color: '#000000',
                   border: '2px solid #000000',
                   display: 'flex',
                   alignItems: 'center',
@@ -727,6 +820,138 @@ export default function KanbanBoard() {
           </section>
         )}
 
+        {/* 2. Top-of-Boards Filter, Search, and Sort Toolbar */}
+        {!loading && tasks.length > 0 && (
+          <div
+            style={{
+              backgroundColor: colors.bgCard,
+              border: colors.borderCol,
+              boxShadow: colors.shadowBtn,
+              borderRadius: '14px',
+              padding: '12px 18px',
+              marginBottom: '24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '14px',
+            }}
+          >
+            {/* Left: Collapsible Search Input */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isSearchOpen ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder={t.searchPlaceholder}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="neo-input"
+                    style={{
+                      width: '240px',
+                      backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                      color: colors.textMain,
+                      border: colors.borderCol,
+                      padding: '6px 12px',
+                      fontSize: '14px',
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSearchOpen(false);
+                    }}
+                    title="بستن"
+                    className="neo-btn"
+                    style={{
+                      backgroundColor: '#FF66C4',
+                      color: '#000000',
+                      padding: '6px 10px',
+                      boxShadow: '2px 2px 0 #000000',
+                    }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  title={t.searchBtn}
+                  className="neo-btn"
+                  style={{
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
+                    boxShadow: '2px 2px 0 ' + colors.shadow,
+                    padding: '6px 12px',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Search size={16} />
+                  <span>{t.searchBtn}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Right: Priority Filter & Sort Options */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {/* Priority Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: colors.textMuted }}>
+                  {t.filterLabel}
+                </span>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="neo-input"
+                  style={{
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
+                    padding: '6px 10px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="ALL">{t.allPriorities}</option>
+                  <option value="HIGH">{t.highPriority}</option>
+                  <option value="MEDIUM">{t.medPriority}</option>
+                  <option value="LOW">{t.lowPriority}</option>
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ArrowUpDown size={14} color={colors.textMuted} />
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: colors.textMuted }}>
+                  {t.sortLabel}
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="neo-input"
+                  style={{
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
+                    padding: '6px 10px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="created_desc">{t.sortByDateDesc}</option>
+                  <option value="created_asc">{t.sortByDateAsc}</option>
+                  <option value="due_date">{t.sortByDueDate}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* LOADING STATE */}
         {loading && (
           <div style={{ padding: '80px 20px', textAlign: 'center' }}>
@@ -734,6 +959,7 @@ export default function KanbanBoard() {
               style={{
                 display: 'inline-block',
                 backgroundColor: '#FFE600',
+                color: '#000000',
                 border: '3px solid #000000',
                 boxShadow: '5px 5px 0 #000000',
                 padding: '16px 32px',
@@ -760,9 +986,9 @@ export default function KanbanBoard() {
           >
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                border: '3.5px solid #000000',
-                boxShadow: '8px 8px 0 #000000',
+                backgroundColor: colors.bgCard,
+                border: colors.borderCol,
+                boxShadow: colors.shadowCol,
                 borderRadius: '24px',
                 padding: '48px 40px',
                 maxWidth: '560px',
@@ -778,6 +1004,7 @@ export default function KanbanBoard() {
                   top: '16px',
                   [isRTL ? 'left' : 'right']: '16px',
                   backgroundColor: '#FF66C4',
+                  color: '#000000',
                   border: '2px solid #000000',
                   boxShadow: '2px 2px 0 #000000',
                   padding: '4px 10px',
@@ -823,7 +1050,7 @@ export default function KanbanBoard() {
                     width="94"
                     height="110"
                     rx="14"
-                    fill="#FFFFFF"
+                    fill={isDark ? '#1e293b' : '#FFFFFF'}
                     stroke="#000000"
                     strokeWidth="3.5"
                   />
@@ -842,14 +1069,14 @@ export default function KanbanBoard() {
                   <circle cx="97" cy="38" r="4" fill="#000000" />
 
                   {/* Empty dashed lines inside */}
-                  <line x1="68" y1="75" x2="126" y2="75" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
-                  <line x1="68" y1="95" x2="126" y2="95" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
-                  <line x1="68" y1="115" x2="110" y2="115" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
+                  <line x1="68" y1="75" x2="126" y2="75" stroke={isDark ? '#334155' : '#E2E8F0'} strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
+                  <line x1="68" y1="95" x2="126" y2="95" stroke={isDark ? '#334155' : '#E2E8F0'} strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
+                  <line x1="68" y1="115" x2="110" y2="115" stroke={isDark ? '#334155' : '#E2E8F0'} strokeWidth="6" strokeLinecap="round" strokeDasharray="6 6" />
 
                   {/* Friendly Playful Face */}
-                  <circle cx="85" cy="95" r="4" fill="#000000" />
-                  <circle cx="109" cy="95" r="4" fill="#000000" />
-                  <path d="M91 106C94 110 100 110 103 106" stroke="#000000" strokeWidth="3" strokeLinecap="round" />
+                  <circle cx="85" cy="95" r="4" fill={isDark ? '#ffffff' : '#000000'} />
+                  <circle cx="109" cy="95" r="4" fill={isDark ? '#ffffff' : '#000000'} />
+                  <path d="M91 106C94 110 100 110 103 106" stroke={isDark ? '#ffffff' : '#000000'} strokeWidth="3" strokeLinecap="round" />
 
                   {/* Floating Star Badge */}
                   <g transform="translate(125, 90) rotate(15)">
@@ -863,7 +1090,7 @@ export default function KanbanBoard() {
                 style={{
                   fontSize: '32px',
                   fontWeight: 900,
-                  color: '#000000',
+                  color: colors.textMain,
                   margin: '0 0 10px',
                   lineHeight: '1.2',
                 }}
@@ -874,7 +1101,7 @@ export default function KanbanBoard() {
               <p
                 style={{
                   fontSize: '17px',
-                  color: '#4B5563',
+                  color: colors.textMuted,
                   margin: '0 0 28px',
                   lineHeight: '1.6',
                 }}
@@ -887,6 +1114,8 @@ export default function KanbanBoard() {
                 className="neo-btn"
                 style={{
                   backgroundColor: '#FFE600',
+                  color: '#000000',
+                  border: '3px solid #000000',
                   fontSize: '20px',
                   padding: '12px 32px',
                   boxShadow: '5px 5px 0 #000000',
@@ -927,9 +1156,13 @@ export default function KanbanBoard() {
                   onDragLeave={() => setDragOverColumn(null)}
                   onDrop={(e) => handleDrop(e, colId)}
                   style={{
-                    backgroundColor: isOver ? '#FFFBE6' : '#FFFFFF',
-                    border: '3.5px solid #000000',
-                    boxShadow: isOver ? '8px 8px 0 #000000' : '6px 6px 0 #000000',
+                    backgroundColor: isOver
+                      ? isDark
+                        ? '#1e293b'
+                        : '#FFFBE6'
+                      : colors.bgCard,
+                    border: colors.borderCol,
+                    boxShadow: isOver ? colors.shadowCol : colors.shadowBtn,
                     borderRadius: '16px',
                     padding: '20px',
                     minHeight: '560px',
@@ -946,7 +1179,7 @@ export default function KanbanBoard() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       paddingBottom: '16px',
-                      borderBottom: '3px solid #000000',
+                      borderBottom: colors.borderCol,
                       marginBottom: '18px',
                     }}
                   >
@@ -954,6 +1187,7 @@ export default function KanbanBoard() {
                       <span
                         style={{
                           backgroundColor: badgeBg,
+                          color: '#000000',
                           border: '2px solid #000000',
                           boxShadow: '2px 2px 0 #000000',
                           padding: '3px 12px',
@@ -969,8 +1203,8 @@ export default function KanbanBoard() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span
                         style={{
-                          backgroundColor: '#000000',
-                          color: '#FFFFFF',
+                          backgroundColor: isDark ? '#38bdf8' : '#000000',
+                          color: isDark ? '#000000' : '#FFFFFF',
                           padding: '2px 10px',
                           borderRadius: '6px',
                           fontSize: '14px',
@@ -986,8 +1220,10 @@ export default function KanbanBoard() {
                         className="neo-btn"
                         style={{
                           padding: '4px 8px',
-                          backgroundColor: '#FFFFFF',
-                          boxShadow: '2px 2px 0 #000000',
+                          backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                          color: colors.textMain,
+                          border: colors.borderCol,
+                          boxShadow: '2px 2px 0 ' + colors.shadow,
                         }}
                       >
                         <Plus size={16} strokeWidth={2.5} />
@@ -1000,11 +1236,11 @@ export default function KanbanBoard() {
                     {columnTasks.length === 0 ? (
                       <div
                         style={{
-                          border: '2.5px dashed #A0AEC0',
+                          border: isDark ? '2.5px dashed #475569' : '2.5px dashed #A0AEC0',
                           borderRadius: '12px',
                           padding: '36px 16px',
                           textAlign: 'center',
-                          color: '#718096',
+                          color: colors.textMuted,
                           fontSize: '15px',
                         }}
                       >
@@ -1021,9 +1257,9 @@ export default function KanbanBoard() {
                             draggable
                             onDragStart={(e) => handleDragStart(e, task.id)}
                             style={{
-                              backgroundColor: '#FFFFFF',
-                              border: '2.5px solid #000000',
-                              boxShadow: '4px 4px 0 #000000',
+                              backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                              border: colors.borderCol,
+                              boxShadow: '3px 3px 0 ' + colors.shadow,
                               borderRadius: '12px',
                               padding: '16px',
                               cursor: 'grab',
@@ -1034,11 +1270,11 @@ export default function KanbanBoard() {
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.transform = 'translate(-2px, -2px)';
-                              e.currentTarget.style.boxShadow = '6px 6px 0 #000000';
+                              e.currentTarget.style.boxShadow = '5px 5px 0 ' + colors.shadow;
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.transform = 'none';
-                              e.currentTarget.style.boxShadow = '4px 4px 0 #000000';
+                              e.currentTarget.style.boxShadow = '3px 3px 0 ' + colors.shadow;
                             }}
                           >
                             {/* Card Top: Title & Edit/Delete icons */}
@@ -1054,7 +1290,10 @@ export default function KanbanBoard() {
                                 style={{
                                   fontSize: '18px',
                                   fontWeight: 800,
-                                  color: task.status === 'DONE' ? '#6B7280' : '#000000',
+                                  color:
+                                    task.status === 'DONE'
+                                      ? colors.textMuted
+                                      : colors.textMain,
                                   textDecoration:
                                     task.status === 'DONE' ? 'line-through' : 'none',
                                   margin: 0,
@@ -1071,8 +1310,10 @@ export default function KanbanBoard() {
                                   className="neo-btn"
                                   style={{
                                     padding: '4px 6px',
-                                    backgroundColor: '#FFFFFF',
-                                    boxShadow: '2px 2px 0 #000000',
+                                    backgroundColor: isDark ? '#334155' : '#FFFFFF',
+                                    color: colors.textMain,
+                                    border: colors.borderCol,
+                                    boxShadow: '2px 2px 0 ' + colors.shadow,
                                   }}
                                 >
                                   <Edit2 size={14} />
@@ -1087,6 +1328,8 @@ export default function KanbanBoard() {
                                     style={{
                                       padding: '4px 6px',
                                       backgroundColor: '#FF66C4',
+                                      color: '#000000',
+                                      border: '2px solid #000000',
                                       boxShadow: '2px 2px 0 #000000',
                                     }}
                                   >
@@ -1101,7 +1344,7 @@ export default function KanbanBoard() {
                               <p
                                 style={{
                                   fontSize: '14px',
-                                  color: '#374151',
+                                  color: isDark ? '#cbd5e1' : '#374151',
                                   margin: 0,
                                   lineHeight: '1.5',
                                   whiteSpace: 'pre-wrap',
@@ -1120,7 +1363,7 @@ export default function KanbanBoard() {
                                 flexWrap: 'wrap',
                                 gap: '8px',
                                 paddingTop: '8px',
-                                borderTop: '2px dashed #E5E7EB',
+                                borderTop: isDark ? '2px dashed #334155' : '2px dashed #E5E7EB',
                               }}
                             >
                               <span
@@ -1145,9 +1388,9 @@ export default function KanbanBoard() {
                                     alignItems: 'center',
                                     gap: '5px',
                                     fontSize: '12px',
-                                    color: '#4B5563',
-                                    backgroundColor: '#F3F4F6',
-                                    border: '1.5px solid #000000',
+                                    color: isDark ? '#94a3b8' : '#4B5563',
+                                    backgroundColor: isDark ? '#334155' : '#F3F4F6',
+                                    border: colors.borderCol,
                                     padding: '2px 8px',
                                     borderRadius: '6px',
                                   }}
@@ -1188,7 +1431,10 @@ export default function KanbanBoard() {
                                   }
                                   className="neo-btn"
                                   style={{
-                                    backgroundColor: '#FFFFFF',
+                                    backgroundColor: isDark ? '#334155' : '#FFFFFF',
+                                    color: colors.textMain,
+                                    border: colors.borderCol,
+                                    boxShadow: '2px 2px 0 ' + colors.shadow,
                                     padding: '4px 10px',
                                     fontSize: '13px',
                                   }}
@@ -1210,6 +1456,9 @@ export default function KanbanBoard() {
                                   style={{
                                     backgroundColor:
                                       task.status === 'IN_PROGRESS' ? '#4EFA8A' : '#38BDF8',
+                                    color: '#000000',
+                                    border: '2px solid #000000',
+                                    boxShadow: '2px 2px 0 #000000',
                                     padding: '4px 12px',
                                     fontSize: '13px',
                                     [isRTL ? 'marginRight' : 'marginLeft']: 'auto',
@@ -1268,7 +1517,7 @@ export default function KanbanBoard() {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
             backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
@@ -1279,9 +1528,9 @@ export default function KanbanBoard() {
         >
           <div
             style={{
-              backgroundColor: '#FFFFFF',
-              border: '4px solid #000000',
-              boxShadow: '10px 10px 0 #000000',
+              backgroundColor: colors.bgCard,
+              border: colors.borderCol,
+              boxShadow: colors.shadowCol,
               borderRadius: '20px',
               width: '100%',
               maxWidth: '500px',
@@ -1295,7 +1544,7 @@ export default function KanbanBoard() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 paddingBottom: '14px',
-                borderBottom: '3px solid #000000',
+                borderBottom: colors.borderCol,
                 marginBottom: '18px',
               }}
             >
@@ -1303,6 +1552,7 @@ export default function KanbanBoard() {
                 style={{
                   fontSize: '24px',
                   fontWeight: 900,
+                  color: colors.textMain,
                   margin: 0,
                 }}
               >
@@ -1313,6 +1563,8 @@ export default function KanbanBoard() {
                 className="neo-btn"
                 style={{
                   backgroundColor: '#FF66C4',
+                  color: '#000000',
+                  border: '2px solid #000000',
                   padding: '4px 8px',
                   boxShadow: '2px 2px 0 #000000',
                 }}
@@ -1325,6 +1577,7 @@ export default function KanbanBoard() {
               <div
                 style={{
                   backgroundColor: '#FF66C4',
+                  color: '#000000',
                   border: '2px solid #000000',
                   padding: '10px 14px',
                   borderRadius: '8px',
@@ -1348,6 +1601,7 @@ export default function KanbanBoard() {
                     display: 'block',
                     fontSize: '15px',
                     fontWeight: 'bold',
+                    color: colors.textMain,
                     marginBottom: '6px',
                   }}
                 >
@@ -1360,7 +1614,12 @@ export default function KanbanBoard() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="neo-input"
-                  style={{ width: '100%' }}
+                  style={{
+                    width: '100%',
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
+                  }}
                 />
               </div>
 
@@ -1371,6 +1630,7 @@ export default function KanbanBoard() {
                     display: 'block',
                     fontSize: '15px',
                     fontWeight: 'bold',
+                    color: colors.textMain,
                     marginBottom: '6px',
                   }}
                 >
@@ -1382,28 +1642,37 @@ export default function KanbanBoard() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="neo-input"
-                  style={{ width: '100%', resize: 'vertical' }}
+                  style={{
+                    width: '100%',
+                    resize: 'vertical',
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
+                  }}
                 />
               </div>
 
-              {/* 3. Priority Selector */}
+              {/* 3. Priority Selector (Default is unselected / null!) */}
               <div>
-                <label
+                <span
                   style={{
                     display: 'block',
-                    fontSize: '15px',
+                    fontSize: '13px',
                     fontWeight: 'bold',
-                    marginBottom: '8px',
+                    color: colors.textMuted,
+                    marginBottom: '6px',
                   }}
                 >
                   {t.priorityLabel}
-                </label>
+                </span>
 
                 {formData.priority ? (
+                  /* Selected Priority Badge with ✕ remove button */
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div
                       style={{
                         backgroundColor: PRIORITY_THEME[formData.priority].bg,
+                        color: PRIORITY_THEME[formData.priority].color,
                         border: '2.5px solid #000000',
                         boxShadow: '3px 3px 0 #000000',
                         padding: '6px 14px',
@@ -1419,7 +1688,7 @@ export default function KanbanBoard() {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, priority: null })}
-                        title="Remove / Change"
+                        title="Remove"
                         style={{
                           background: '#000000',
                           border: 'none',
@@ -1437,8 +1706,12 @@ export default function KanbanBoard() {
                         <X size={12} strokeWidth={3} />
                       </button>
                     </div>
+                    <span style={{ fontSize: '12px', color: colors.textMuted }}>
+                      ({t.selectPriorityHint})
+                    </span>
                   </div>
                 ) : (
+                  /* 3 Selectable Buttons */
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {(['LOW', 'MEDIUM', 'HIGH'] as TaskPriority[]).map((p) => {
                       const theme = PRIORITY_THEME[p];
@@ -1450,6 +1723,9 @@ export default function KanbanBoard() {
                           className="neo-btn"
                           style={{
                             backgroundColor: theme.bg,
+                            color: theme.color,
+                            border: '2px solid #000000',
+                            boxShadow: '2.5px 2.5px 0 #000000',
                             padding: '6px 14px',
                             fontSize: '14px',
                           }}
@@ -1462,13 +1738,14 @@ export default function KanbanBoard() {
                 )}
               </div>
 
-              {/* 4. Due Date */}
+              {/* 4. Due Date (Cannot be in the past!) */}
               <div>
                 <label
                   style={{
                     display: 'block',
                     fontSize: '15px',
                     fontWeight: 'bold',
+                    color: colors.textMain,
                     marginBottom: '6px',
                   }}
                 >
@@ -1478,10 +1755,17 @@ export default function KanbanBoard() {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
                   <input
                     type="date"
+                    min={todayDateStr}
                     value={formData.due_date}
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                     className="neo-input"
-                    style={{ flex: 1, cursor: 'pointer' }}
+                    style={{
+                      flex: 1,
+                      cursor: 'pointer',
+                      backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                      color: colors.textMain,
+                      border: colors.borderCol,
+                    }}
                   />
                   {formData.due_date && (
                     <button
@@ -1490,7 +1774,9 @@ export default function KanbanBoard() {
                       title="Clear"
                       className="neo-btn"
                       style={{
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: '#FF66C4',
+                        color: '#000000',
+                        border: '2px solid #000000',
                         padding: '8px 12px',
                         boxShadow: '2px 2px 0 #000000',
                       }}
@@ -1507,10 +1793,12 @@ export default function KanbanBoard() {
                     onClick={() => setQuickDate(0)}
                     className="neo-btn"
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                      color: colors.textMain,
+                      border: colors.borderCol,
                       padding: '3px 10px',
                       fontSize: '12px',
-                      boxShadow: '2px 2px 0 #000000',
+                      boxShadow: '2px 2px 0 ' + colors.shadow,
                     }}
                   >
                     📅 {t.quickDates.today}
@@ -1520,10 +1808,12 @@ export default function KanbanBoard() {
                     onClick={() => setQuickDate(1)}
                     className="neo-btn"
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                      color: colors.textMain,
+                      border: colors.borderCol,
                       padding: '3px 10px',
                       fontSize: '12px',
-                      boxShadow: '2px 2px 0 #000000',
+                      boxShadow: '2px 2px 0 ' + colors.shadow,
                     }}
                   >
                     🚀 {t.quickDates.tomorrow}
@@ -1533,10 +1823,12 @@ export default function KanbanBoard() {
                     onClick={() => setQuickDate(7)}
                     className="neo-btn"
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                      color: colors.textMain,
+                      border: colors.borderCol,
                       padding: '3px 10px',
                       fontSize: '12px',
-                      boxShadow: '2px 2px 0 #000000',
+                      boxShadow: '2px 2px 0 ' + colors.shadow,
                     }}
                   >
                     🗓️ {t.quickDates.nextWeek}
@@ -1558,7 +1850,9 @@ export default function KanbanBoard() {
                   onClick={() => setIsModalOpen(false)}
                   className="neo-btn"
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    border: colors.borderCol,
                     padding: '8px 20px',
                   }}
                 >
@@ -1570,6 +1864,8 @@ export default function KanbanBoard() {
                   className="neo-btn"
                   style={{
                     backgroundColor: '#FFE600',
+                    color: '#000000',
+                    border: '3px solid #000000',
                     padding: '8px 26px',
                     fontSize: '17px',
                     boxShadow: '4px 4px 0 #000000',
