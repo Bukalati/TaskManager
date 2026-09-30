@@ -1269,7 +1269,7 @@ export function AdminUsersModal({ isOpen, onClose, currentUserId, lang, colors, 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/users');
+      const res = await fetch('/api/auth/users', { cache: 'no-store' });
       const json = await res.json();
       if (res.ok) {
         setUsers(json.data || []);

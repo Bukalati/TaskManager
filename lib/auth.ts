@@ -56,19 +56,20 @@ const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 let inMemoryUsers: StoredUser[] | null = null;
 
 export function getAllStoredUsers(): StoredUser[] {
-  if (inMemoryUsers && inMemoryUsers.length > 0) {
-    return inMemoryUsers;
-  }
-
   try {
     if (fs.existsSync(PROFILES_FILE)) {
       const raw = fs.readFileSync(PROFILES_FILE, 'utf-8');
-      inMemoryUsers = JSON.parse(raw);
-      if (inMemoryUsers && inMemoryUsers.length > 0) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryUsers = parsed;
         return inMemoryUsers;
       }
     }
   } catch {}
+
+  if (inMemoryUsers && inMemoryUsers.length > 0) {
+    return inMemoryUsers;
+  }
 
   inMemoryUsers = [...DEFAULT_USERS];
   try {

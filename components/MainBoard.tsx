@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Plus,
   Trash2,
@@ -527,6 +527,7 @@ export default function TaskBoard() {
       setError(null);
       const res = await fetch(
         "/api/tasks?limit=100&sortBy=created_at&sortOrder=desc",
+        { cache: "no-store" }
       );
       const json = await res.json();
       if (!res.ok) {
@@ -544,11 +545,23 @@ export default function TaskBoard() {
     }
   };
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/users', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data)) {
+          setUsersList(json.data);
+        }
+      }
+    } catch {}
+  }, []);
+
   // Check session and fetch users list on mount
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           if (json.data) {
@@ -558,22 +571,10 @@ export default function TaskBoard() {
       } catch {}
     };
 
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch('/api/auth/users');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data) {
-            setUsersList(json.data);
-          }
-        }
-      } catch {}
-    };
-
     checkSession();
     fetchUsers();
     fetchTasks();
-  }, []);
+  }, [fetchUsers]);
 
   const handleLogout = async () => {
     try {
@@ -672,6 +673,8 @@ export default function TaskBoard() {
       setIsAuthModalOpen(true);
       return;
     }
+    // Refresh users list so any newly registered user appears immediately
+    fetchUsers();
     setEditingTask(null);
     setFormData({
       title: "",
@@ -699,6 +702,8 @@ export default function TaskBoard() {
       );
       return;
     }
+    // Refresh users list so any newly registered user appears immediately
+    fetchUsers();
     setEditingTask(task);
     setFormData({
       title: task.title,
@@ -3624,13 +3629,12 @@ export default function TaskBoard() {
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
+          setUsersList((prev) => {
+            if (prev.some((u) => u.id === user.id)) return prev;
+            return [...prev, user];
+          });
           fetchTasks();
-          fetch("/api/auth/users")
-            .then((r) => r.json())
-            .then((j) => {
-              if (j.data) setUsersList(j.data);
-            })
-            .catch(() => {});
+          fetchUsers();
         }}
         lang={lang}
         colors={colors}
@@ -3647,6 +3651,7 @@ export default function TaskBoard() {
           setUsersList((prev) =>
             prev.map((u) => (u.id === updated.id ? updated : u)),
           );
+          fetchUsers();
         }}
         onOpenChangePassword={() => setIsPasswordModalOpen(true)}
         lang={lang}
@@ -3666,7 +3671,10 @@ export default function TaskBoard() {
 
       <AdminUsersModal
         isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
+        onClose={() => {
+          setIsAdminModalOpen(false);
+          fetchUsers();
+        }}
         currentUserId={currentUser?.id || ""}
         lang={lang}
         colors={colors}
