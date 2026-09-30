@@ -1,52 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Lalehzar&display=swap');
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-family: 'Lalehzar', cursive, -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0.3px;
 }
 
 :root {
-  --bg-primary: #090d16;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-card-hover: #273548;
-  --border-color: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --bg-page: #F7F4EB;
+  --black: #000000;
+  --white: #FFFFFF;
+  --neon-yellow: #FFE600;
+  --electric-blue: #38BDF8;
+  --acid-green: #4EFA8A;
+  --retro-orange: #FF7A00;
+  --bubble-pink: #FF66C4;
+  --soft-lavender: #E4D4F4;
+  
+  --border-thick: 3px solid #000000;
+  --border-thin: 2px solid #000000;
+  
+  --shadow-sm: 3px 3px 0px #000000;
+  --shadow-md: 5px 5px 0px #000000;
+  --shadow-lg: 8px 8px 0px #000000;
+  --shadow-hover: 7px 7px 0px #000000;
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Vazirmatn", sans-serif;
+  background-color: var(--bg-page);
+  color: var(--black);
   min-height: 100vh;
+  /* Retro Swiss grid pattern */
+  background-image: 
+    linear-gradient(#0000000d 1px, transparent 1px),
+    linear-gradient(90deg, #0000000d 1px, transparent 1px);
+  background-size: 32px 32px;
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, select, textarea {
-  font-family: inherit;
+/* Neo-Brutalist button base */
+.neo-btn {
+  background-color: var(--neon-yellow);
+  color: var(--black);
+  border: var(--border-thick);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  padding: 8px 18px;
+  font-weight: 400;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.neo-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000000;
+}
+
+/* Neo-Brutalist Card base */
+.neo-card {
+  background-color: var(--white);
+  border: var(--border-thick);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.neo-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Neo-Brutalist inputs & selects */
+.neo-input {
+  background-color: var(--white);
+  border: var(--border-thick);
+  color: var(--black);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 15px;
+  outline: none;
+  transition: all 0.1s ease;
+}
+
+.neo-input:focus {
+  background-color: #FFFDF0;
+  box-shadow: 5px 5px 0px #000000;
+  transform: translate(-1px, -1px);
+}
+
+/* Y2K Retro Sticker Badge */
+.y2k-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 10px;
+  border: var(--border-thin);
+  box-shadow: 2px 2px 0px #000000;
+  border-radius: 999px;
+  text-transform: uppercase;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: #F7F4EB;
+  border-left: 2px solid #000000;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--black);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #333333;
 }

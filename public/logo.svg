@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Retro Neo-Brutalist 3D Task Badge -->
+  <!-- Shadow -->
+  <rect x="18" y="18" width="68" height="68" rx="14" fill="#000000" />
+  <!-- Main Card -->
+  <rect x="14" y="14" width="68" height="68" rx="14" fill="#FFE600" stroke="#000000" stroke-width="4" />
+  
+  <!-- Checkmark / Star collage -->
+  <path d="M30 48L42 60L70 32" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Retro Sparkle / Star top right -->
+  <path d="M68 18L71 25L78 28L71 31L68 38L65 31L58 28L65 25Z" fill="#FF5500" stroke="#000000" stroke-width="2"/>
+  
+  <!-- Small dot bottom left -->
+  <circle cx="30" cy="30" r="4" fill="#00F0FF" stroke="#000000" stroke-width="2.5" />
+</svg>

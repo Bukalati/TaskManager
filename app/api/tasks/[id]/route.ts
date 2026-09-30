@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '../../../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import {
   taskIdParamSchema,
   updateTaskSchema,
-} from '../../../../lib/validations/task.schema';
+} from '@/lib/validations/task.schema';
 import {
   successResponse,
   errorResponse,
   handleApiError,
-} from '../../../../lib/utils/api-response';
-import type { Task } from '../../../../types/task';
+} from '@/lib/utils/api-response';
+import type { Task } from '@/types/task';
 
 interface RouteContext {
   params: Promise<{
