@@ -24,6 +24,26 @@ export interface StoredUser extends UserSession {
   password_hash: string;
 }
 
+// Convert Persian/Arabic digits (۰-۹ / ٠-٩) to standard Latin digits (0-9)
+export function normalizeDigits(str: string): string {
+  if (!str) return str;
+  return str
+    .replace(/[۰-۹]/g, (d) => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)])
+    .replace(/[٠-٩]/g, (d) => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+}
+
+// Clean and normalize email address
+export function cleanEmailAddress(email: string): string {
+  if (!email) return '';
+  return normalizeDigits(email.trim().toLowerCase());
+}
+
+// Clean and normalize password
+export function normalizePassword(pass: string): string {
+  if (!pass) return '';
+  return normalizeDigits(pass);
+}
+
 // Default seeded accounts
 export const DEFAULT_USERS: StoredUser[] = [
   {
@@ -88,7 +108,7 @@ export async function getAllStoredUsersAsync(): Promise<StoredUser[]> {
 
   // 2. Load from local profiles.json if exists
   for (const loc of getAllStoredUsers()) {
-    usersMap.set(loc.id, { ...loc });
+    if (loc.id) usersMap.set(loc.id, { ...loc });
   }
 
   // 3. Fetch from Supabase tasks table (__USER__:<email> rows)
@@ -105,7 +125,13 @@ export async function getAllStoredUsersAsync(): Promise<StoredUser[]> {
           if (row.description) {
             const userObj = JSON.parse(row.description) as StoredUser;
             if (userObj.id && userObj.email) {
-              usersMap.set(userObj.id, userObj);
+              const existing = usersMap.get(userObj.id) || ({} as StoredUser);
+              usersMap.set(userObj.id, {
+                ...existing,
+                ...userObj,
+                email: cleanEmailAddress(userObj.email),
+                password_hash: userObj.password_hash || existing.password_hash || '',
+              });
             }
           }
         } catch {}
@@ -126,7 +152,7 @@ export async function getAllStoredUsersAsync(): Promise<StoredUser[]> {
             ...existing,
             ...p,
             id: p.id,
-            email: p.email || existing.email,
+            email: cleanEmailAddress(p.email || existing.email),
             full_name: p.full_name || existing.full_name,
             role: p.role || existing.role || 'member',
             avatar_url: p.avatar_url ?? existing.avatar_url ?? null,
@@ -170,7 +196,7 @@ export async function saveStoredUserAsync(user: Partial<StoredUser> & { id: stri
   const updated = saveStoredUser(user);
 
   let fullUser = updated;
-  if (!fullUser.email) {
+  if (!fullUser.email || !fullUser.password_hash) {
     const existing = (await findUserByIdAsync(user.id)) || findUserById(user.id);
     if (existing) {
       fullUser = { ...existing, ...updated };
@@ -178,12 +204,14 @@ export async function saveStoredUserAsync(user: Partial<StoredUser> & { id: stri
   }
 
   if (fullUser.id && fullUser.email) {
+    fullUser.email = cleanEmailAddress(fullUser.email);
+
     // Upsert into Supabase tasks table
     try {
       const client = supabase.client;
       await client.from('tasks').upsert({
         id: fullUser.id,
-        title: '__USER__:' + fullUser.email.toLowerCase(),
+        title: '__USER__:' + fullUser.email,
         description: JSON.stringify(fullUser),
         status: 'TODO',
         priority: 'LOW',
@@ -202,103 +230,156 @@ export async function saveStoredUserAsync(user: Partial<StoredUser> & { id: stri
 }
 
 export function findUserByEmail(email: string): StoredUser | undefined {
+  const cleanEmail = cleanEmailAddress(email);
+  if (!cleanEmail) return undefined;
   const users = getAllStoredUsers();
-  return users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  return users.find((u) => cleanEmailAddress(u.email) === cleanEmail);
 }
 
 export async function findUserByEmailAsync(email: string): Promise<StoredUser | undefined> {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = cleanEmailAddress(email);
+  if (!cleanEmail) return undefined;
 
-  // Try direct Supabase query first
+  // 1. In-memory / local fast lookup
+  const localMatch = getAllStoredUsers().find(
+    (u) => cleanEmailAddress(u.email) === cleanEmail && !!u.password_hash
+  );
+  if (localMatch) {
+    return localMatch;
+  }
+
+  // 2. Direct Supabase tasks query (case-insensitive with ilike, limit 1)
   try {
     const client = supabase.client;
-    const { data } = await client
+    const { data, error } = await client
       .from('tasks')
       .select('id, title, description')
-      .eq('title', '__USER__:' + cleanEmail)
-      .maybeSingle();
+      .ilike('title', `__USER__:${cleanEmail}`)
+      .limit(1);
 
-    if (data?.description) {
-      const parsed = JSON.parse(data.description) as StoredUser;
-      if (parsed.email) {
-        saveStoredUser(parsed);
-        return parsed;
-      }
+    if (!error && Array.isArray(data) && data.length > 0 && data[0]?.description) {
+      try {
+        const parsed = JSON.parse(data[0].description) as StoredUser;
+        if (parsed.email && parsed.password_hash) {
+          saveStoredUser(parsed);
+          return parsed;
+        }
+      } catch {}
     }
   } catch {}
 
-  // Also try profiles table
+  // 3. Profiles table if exists
   try {
     const client = supabase.client;
-    const { data } = await client
+    const { data, error } = await client
       .from('profiles')
       .select('*')
-      .eq('email', cleanEmail)
-      .maybeSingle();
+      .ilike('email', cleanEmail)
+      .limit(1);
 
-    if (data?.email) {
-      saveStoredUser(data);
-      return data;
+    if (!error && Array.isArray(data) && data.length > 0 && data[0]?.email) {
+      saveStoredUser(data[0]);
+      return data[0];
     }
   } catch {}
 
-  // Fallback to all stored users async
-  const all = await getAllStoredUsersAsync();
-  return all.find((u) => u.email.toLowerCase() === cleanEmail);
+  // 4. Fetch all async
+  try {
+    const all = await getAllStoredUsersAsync();
+    const found = all.find((u) => cleanEmailAddress(u.email) === cleanEmail);
+    if (found && found.password_hash) {
+      saveStoredUser(found);
+      return found;
+    }
+  } catch {}
+
+  // 5. Default users
+  return DEFAULT_USERS.find((u) => cleanEmailAddress(u.email) === cleanEmail);
 }
 
 export function findUserById(id: string): StoredUser | undefined {
+  if (!id) return undefined;
   const users = getAllStoredUsers();
   return users.find((u) => u.id === id);
 }
 
 export async function findUserByIdAsync(id: string): Promise<StoredUser | undefined> {
-  // Try direct Supabase query
+  if (!id) return undefined;
+
+  // 1. In-memory / local fast lookup
+  const localMatch = getAllStoredUsers().find((u) => u.id === id);
+  if (localMatch && localMatch.password_hash) {
+    return localMatch;
+  }
+
+  // 2. Direct Supabase query
   try {
     const client = supabase.client;
-    const { data } = await client
+    const { data, error } = await client
       .from('tasks')
       .select('id, title, description')
       .eq('id', id)
-      .like('title', '__USER__:%')
-      .maybeSingle();
+      .limit(1);
 
-    if (data?.description) {
-      const parsed = JSON.parse(data.description) as StoredUser;
-      if (parsed.id) {
-        saveStoredUser(parsed);
-        return parsed;
-      }
+    if (!error && Array.isArray(data) && data.length > 0 && data[0]?.description) {
+      try {
+        const parsed = JSON.parse(data[0].description) as StoredUser;
+        if (parsed.id) {
+          saveStoredUser(parsed);
+          return parsed;
+        }
+      } catch {}
     }
   } catch {}
 
-  // Try profiles table
+  // 3. Profiles table
   try {
     const client = supabase.client;
-    const { data } = await client
+    const { data, error } = await client
       .from('profiles')
       .select('*')
       .eq('id', id)
-      .maybeSingle();
+      .limit(1);
 
-    if (data?.id) {
-      saveStoredUser(data);
-      return data;
+    if (!error && Array.isArray(data) && data.length > 0 && data[0]?.id) {
+      saveStoredUser(data[0]);
+      return data[0];
     }
   } catch {}
 
-  const all = await getAllStoredUsersAsync();
-  return all.find((u) => u.id === id);
+  // 4. Fallback to all stored users
+  try {
+    const all = await getAllStoredUsersAsync();
+    const found = all.find((u) => u.id === id);
+    if (found) {
+      saveStoredUser(found);
+      return found;
+    }
+  } catch {}
+
+  return DEFAULT_USERS.find((u) => u.id === id);
 }
 
 // Hash plain password
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
+  const norm = normalizePassword(password);
+  return bcrypt.hash(norm, 10);
 }
 
-// Compare plain password with hash
+// Compare plain password with hash (supports normalized digits)
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  if (!password || !hash) return false;
+  try {
+    const directMatch = await bcrypt.compare(password, hash);
+    if (directMatch) return true;
+    const norm = normalizePassword(password);
+    if (norm !== password) {
+      return await bcrypt.compare(norm, hash);
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 // Sign JWT token - Keep token small so it NEVER exceeds the 4096-byte cookie limit

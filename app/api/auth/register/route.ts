@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { hashPassword, signToken, COOKIE_NAME, findUserByEmailAsync, saveStoredUserAsync } from '@/lib/auth';
+import { hashPassword, signToken, COOKIE_NAME, findUserByEmailAsync, saveStoredUserAsync, cleanEmailAddress, normalizeDigits } from '@/lib/auth';
 import { errorResponse } from '@/lib/utils/api-response';
 
 export const dynamic = 'force-dynamic';
@@ -14,20 +13,22 @@ export async function POST(request: NextRequest) {
       return errorResponse('تمام فیلدها (نام، ایمیل و رمز عبور) الزامی هستند', 400);
     }
 
-    if (password.length < 6) {
+    const cleanEmail = cleanEmailAddress(email);
+    const cleanPass = normalizeDigits(password);
+
+    if (cleanPass.length < 6) {
       return errorResponse('رمز عبور باید حداقل ۶ کاراکتر باشد', 400);
     }
 
-    const cleanEmail = email.trim().toLowerCase();
     const cleanName = full_name.trim();
 
     // Check if email already registered
     const existingUser = await findUserByEmailAsync(cleanEmail);
     if (existingUser) {
-      return errorResponse('کاربری با این ایمیل قبلاً ثبت نام کرده است', 409);
+      return errorResponse('کاربری با این ایمیل قبلاً ثبت نام کرده است. لطفاً وارد شوید.', 409);
     }
 
-    const password_hash = await hashPassword(password);
+    const password_hash = await hashPassword(cleanPass);
     const newUserId = crypto.randomUUID();
     const role: 'member' = 'member';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   Lock,
@@ -17,6 +17,8 @@ import {
   ChevronDown,
   Camera,
   Check,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import type { UserSummary } from '@/types/task';
 
@@ -44,9 +46,26 @@ export function AuthModal({
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Automatically reset to login tab with fresh inputs whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTab('login');
+      setError(null);
+      setMessage(null);
+      setEmail('');
+      setPassword('');
+      setFullName('');
+      setNewPassword('');
+      setShowPassword(false);
+      setShowNewPassword(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -58,7 +77,7 @@ export function AuthModal({
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -81,7 +100,7 @@ export function AuthModal({
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, full_name: fullName }),
+        body: JSON.stringify({ email: email.trim(), password, full_name: fullName.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -105,7 +124,7 @@ export function AuthModal({
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, new_password: newPassword || undefined }),
+        body: JSON.stringify({ email: email.trim(), new_password: newPassword ? newPassword.trim() : undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -291,6 +310,9 @@ export function AuthModal({
                 <input
                   type="email"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@taskflow.local"
@@ -330,24 +352,47 @@ export function AuthModal({
                   {lang === 'fa' ? 'فراموشی رمز؟' : 'Forgot?'}
                 </button>
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="neo-input"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: colors.borderCol,
-                  backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
-                  color: colors.textMain,
-                  boxSizing: 'border-box',
-                  fontSize: '14px',
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="neo-input"
+                  style={{
+                    width: '100%',
+                    padding: isRTL ? '10px 42px 10px 12px' : '10px 12px 10px 42px',
+                    borderRadius: '10px',
+                    border: colors.borderCol,
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    boxSizing: 'border-box',
+                    fontSize: '14px',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    [isRTL ? 'left' : 'right']: '12px',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: colors.textMuted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showPassword ? (lang === 'fa' ? 'مخفی‌سازی رمز' : 'Hide password') : (lang === 'fa' ? 'نمایش رمز' : 'Show password')}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -472,6 +517,9 @@ export function AuthModal({
               <input
                 type="email"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="user@example.com"
@@ -493,25 +541,48 @@ export function AuthModal({
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 900, marginBottom: '6px' }}>
                 {lang === 'fa' ? 'رمز عبور (حداقل ۶ کاراکتر):' : 'Password (min 6 chars):'}
               </label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="neo-input"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: colors.borderCol,
-                  backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
-                  color: colors.textMain,
-                  boxSizing: 'border-box',
-                  fontSize: '14px',
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="neo-input"
+                  style={{
+                    width: '100%',
+                    padding: isRTL ? '10px 42px 10px 12px' : '10px 12px 10px 42px',
+                    borderRadius: '10px',
+                    border: colors.borderCol,
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    boxSizing: 'border-box',
+                    fontSize: '14px',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    [isRTL ? 'left' : 'right']: '12px',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: colors.textMuted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showPassword ? (lang === 'fa' ? 'مخفی‌سازی رمز' : 'Hide password') : (lang === 'fa' ? 'نمایش رمز' : 'Show password')}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -546,6 +617,9 @@ export function AuthModal({
               <input
                 type="email"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="user@example.com"
@@ -567,25 +641,48 @@ export function AuthModal({
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 900, marginBottom: '6px' }}>
                 {lang === 'fa' ? 'رمز عبور جدید:' : 'New Password:'}
               </label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••"
-                className="neo-input"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: colors.borderCol,
-                  backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
-                  color: colors.textMain,
-                  boxSizing: 'border-box',
-                  fontSize: '14px',
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="neo-input"
+                  style={{
+                    width: '100%',
+                    padding: isRTL ? '10px 42px 10px 12px' : '10px 12px 10px 42px',
+                    borderRadius: '10px',
+                    border: colors.borderCol,
+                    backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                    color: colors.textMain,
+                    boxSizing: 'border-box',
+                    fontSize: '14px',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    [isRTL ? 'left' : 'right']: '12px',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: colors.textMuted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showNewPassword ? (lang === 'fa' ? 'مخفی‌سازی رمز' : 'Hide password') : (lang === 'fa' ? 'نمایش رمز' : 'Show password')}
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button

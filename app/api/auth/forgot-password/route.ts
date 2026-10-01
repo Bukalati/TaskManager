@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { DEFAULT_USERS, hashPassword } from '@/lib/auth';
+import { hashPassword, findUserByEmailAsync, saveStoredUserAsync, cleanEmailAddress, normalizeDigits } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,25 +13,8 @@ export async function POST(request: NextRequest) {
       return errorResponse('ایمیل الزامی است', 400);
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    let userRecord: any = null;
-
-    try {
-      const client = supabase.client;
-      const { data } = await client
-        .from('profiles')
-        .select('*')
-        .eq('email', cleanEmail)
-        .maybeSingle();
-
-      if (data) userRecord = data;
-    } catch {
-      // Fallback
-    }
-
-    if (!userRecord) {
-      userRecord = DEFAULT_USERS.find((u) => u.email.toLowerCase() === cleanEmail);
-    }
+    const cleanEmail = cleanEmailAddress(email);
+    const userRecord = await findUserByEmailAsync(cleanEmail);
 
     if (!userRecord) {
       return errorResponse('حساب کاربری با این ایمیل یافت نشد', 404);
@@ -38,19 +22,12 @@ export async function POST(request: NextRequest) {
 
     // If new_password provided, reset immediately
     if (new_password) {
-      if (new_password.length < 6) {
+      const cleanPass = normalizeDigits(new_password);
+      if (cleanPass.length < 6) {
         return errorResponse('رمز عبور جدید باید حداقل ۶ کاراکتر باشد', 400);
       }
-      const newHash = await hashPassword(new_password);
-      try {
-        const client = supabase.client;
-        await client
-          .from('profiles')
-          .update({ password_hash: newHash, updated_at: new Date().toISOString() })
-          .eq('email', cleanEmail);
-      } catch {
-        userRecord.password_hash = newHash;
-      }
+      const newHash = await hashPassword(cleanPass);
+      await saveStoredUserAsync({ id: userRecord.id, password_hash: newHash });
       return successResponse({ message: 'رمز عبور شما با موفقیت بازنشانی شد' });
     }
 

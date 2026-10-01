@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { comparePassword, signToken, COOKIE_NAME, findUserByEmailAsync } from '@/lib/auth';
+import { comparePassword, signToken, COOKIE_NAME, findUserByEmailAsync, cleanEmailAddress } from '@/lib/auth';
 import { errorResponse } from '@/lib/utils/api-response';
 
 export const dynamic = 'force-dynamic';
@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('ایمیل و رمز عبور الزامی است', 400);
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = cleanEmailAddress(email);
     const userRecord = await findUserByEmailAsync(cleanEmail);
 
     if (!userRecord) {
-      return errorResponse('کاربری با این ایمیل یافت نشد', 401);
+      return errorResponse('کاربری با این ایمیل یافت نشد. لطفاً در صورت نداشتن حساب، ابتدا ثبت‌نام کنید.', 401);
     }
 
     const isMatch = await comparePassword(password, userRecord.password_hash);
